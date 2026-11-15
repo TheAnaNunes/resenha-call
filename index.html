@@ -193,6 +193,19 @@ svg{flex-shrink:0;display:block}
 .sopt b{display:block;color:var(--head);font-size:14px}
 .sopt small{display:block;color:#b5bac1;font-size:12px;line-height:1.35;margin-top:2px}
 .sopt:hover small{color:#e3e5ff}
+.tile.preview{background:linear-gradient(135deg,#2b2d31,#1e1f22);cursor:default}
+.tile .pv{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;padding:12px}
+.tile .pv .av.lg{width:64px;height:64px;font-size:24px}
+.tile .pvt{color:var(--text);font-size:14px}
+.tile .pvt b{color:var(--head)}
+.tile .pvl{color:var(--muted);font-size:13px}
+.tbtn.wide{width:auto;padding:0 10px;font-size:13px;font-weight:600}
+.volbox{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.6);border-radius:4px;padding-right:8px;cursor:default}
+.volbox .tbtn{background:none}
+.volbox input{width:90px;accent-color:#fff}
+.volbox .vv{font-size:12px;color:#fff;width:34px;text-align:right}
+.stage.focus .strip .tile.preview .pv .av.lg,.stage.focus .strip .tile.preview .pvt{display:none}
+.stage.focus .strip .tile.preview .btn{padding:6px 10px;font-size:13px}
 .turnres{font-size:13px;margin-top:10px;min-height:18px}
 </style>
 </head>
@@ -409,7 +422,7 @@ const DEF = {
   ns: true, ec: true, agc: true, gate: true, gateAuto: true, gateDb: -50, highpass: true, lowpass: false,
   mode: 'vad', pttKey: 'KeyV', pttDelay: 200,
   surface: 'window', screenAudio: true, screenQuality: '1080p30', screenHint: 'motion',
-  sounds: true, msgSound: true, userVol: {}, turnUrl: '', turnUser: '', turnPass: ''
+  sounds: true, msgSound: true, userVol: {}, streamVol: {}, turnUrl: '', turnUser: '', turnPass: ''
 };
 const S = Object.assign({}, DEF, store.get('resenha.settings', {}));
 const save = () => store.set('resenha.settings', S);
@@ -458,6 +471,7 @@ let chatOpen = false, unread = 0, testing = false;
 const peers = new Map();
 const vidCache = new Map();
 const pendingOut = new Set();
+const watchers = new Set(); // quem está assistindo a MINHA transmissão
 const unavailable = new Set(); // slots vazios (o servidor disse que não existe ninguém)
 const blocked = new Set();     // gente que está na sala mas a rede não deixou conectar
 function iceServers() {
@@ -720,7 +734,6 @@ function onConnOpen(c) {
   if (blocked.delete(id)) renderNetWarn();
   sendState(c);
   if (me.id < id) callAudio(id);
-  if (me.sharing && screenStream) callScreen(id);
 }
 
 function onConnClose(c) {
@@ -733,6 +746,7 @@ function removePeer(id) {
   const p = peers.get(id);
   if (!p) return;
   peers.delete(id);
+  watchers.delete(id);
   for (const call of [p.audioCall, p.screenOut, p.screenIn && p.screenIn.call]) { try { call && call.close(); } catch {} }
   if (p.audioEl) { p.audioEl.srcObject = null; p.audioEl.remove(); }
   try { p.src && p.src.disconnect(); } catch {}
@@ -754,7 +768,7 @@ function onData(c, d) {
     p.name = String(d.name || '?').slice(0, 32);
     p.color = colorOf(p.name);
     p.muted = !!d.muted; p.deaf = !!d.deaf; p.sharing = !!d.sharing;
-    if (!p.sharing && p.screenIn) { try { p.screenIn.call.close(); } catch {} p.screenIn = null; }
+    if (!p.sharing) { p.watching = false; if (p.screenIn) { try { p.screenIn.call.close(); } catch {} p.screenIn = null; } }
     if (first) { sound('join'); sysMsg('<b>' + esc(p.name) + '</b> entrou na chamada'); }
     if (!wasSharing && p.sharing) sysMsg('<b>' + esc(p.name) + '</b> começou a transmitir uma janela');
     applyPeerAudio(p);
@@ -762,6 +776,10 @@ function onData(c, d) {
   } else if (d.t === 'chat') {
     addMsg(p.name || '?', p.color, String(d.text || '').slice(0, 2000));
     sound('msg');
+  } else if (d.t === 'watch') {
+    if (d.on) { watchers.add(p.id); if (me.sharing && screenStream) callScreen(p.id); }
+    else { watchers.delete(p.id); if (p.screenOut) { try { p.screenOut.close(); } catch {} p.screenOut = null; } }
+    render();
   } else if (d.t === 'bye') {
     removePeer(p.id);
   }
@@ -776,6 +794,7 @@ function onCall(call) {
   const p = getPeer(call.peer);
   const kind = call.metadata && call.metadata.kind;
   if (kind === 'screen') {
+    if (!p.watching) { try { call.close(); } catch {} return; }
     if (p.screenIn) { try { p.screenIn.call.close(); } catch {} }
     p.screenIn = { call, stream: null };
     const kb = Math.max(1000, Math.min(20000, +(call.metadata.kbps) || 6000));
@@ -823,14 +842,33 @@ function applyPeerAudio(p) {
   const sink = S.outputDevice === 'default' ? '' : S.outputDevice;
   if (p.audioEl.setSinkId && p.sink !== sink) { p.sink = sink; p.audioEl.setSinkId(sink).catch(() => {}); }
 }
+function streamVol(p) { return (S.streamVol && S.streamVol[p.name] != null) ? S.streamVol[p.name] : 100; }
+function watchStream(id) {
+  const p = peers.get(id);
+  if (!p || !p.sharing) return;
+  p.watching = true;
+  focusKey = 's:' + id;
+  try { p.conn && p.conn.send({ t: 'watch', on: true }); } catch {}
+  ctx && ctx.resume();
+  render();
+}
+function leaveStream(id) {
+  const p = peers.get(id);
+  if (!p) return;
+  p.watching = false;
+  try { p.conn && p.conn.send({ t: 'watch', on: false }); } catch {}
+  if (p.screenIn) { try { p.screenIn.call.close(); } catch {} p.screenIn = null; }
+  if (focusKey === 's:' + id) focusKey = null;
+  render();
+}
 function applyAll() {
   for (const p of peers.values()) applyPeerAudio(p);
   for (const [k, v] of vidCache) {
     const id = k.slice(2);
     if (id === 'me') continue;
     const p = peers.get(id);
-    v.muted = me.deaf || (p && p.localMute);
-    v.volume = Math.max(0, Math.min(1, (S.outputVol / 100) * (p ? userVol(p) / 100 : 1)));
+    v.muted = me.deaf || !!(p && p.streamMuted);
+    v.volume = Math.max(0, Math.min(1, (S.outputVol / 100) * (p ? streamVol(p) / 100 : 1)));
     const sink = S.outputDevice === 'default' ? '' : S.outputDevice;
     if (v.setSinkId && v._sink !== sink) { v._sink = sink; v.setSinkId(sink).catch(() => {}); }
   }
@@ -907,7 +945,7 @@ async function startShare(mode) {
   vt.addEventListener('ended', stopShare);
   me.sharing = true;
   focusKey = 's:me';
-  for (const id of peers.keys()) { const p = peers.get(id); if (p.conn && p.conn.open) callScreen(id); }
+  watchers.clear();
   broadcast(stateMsg());
   sound('share');
   render();
@@ -975,6 +1013,7 @@ function stopShare() {
   screenStream = null;
   me.sharing = false;
   for (const p of peers.values()) { if (p.screenOut) { try { p.screenOut.close(); } catch {} p.screenOut = null; } }
+  watchers.clear();
   if (focusKey === 's:me') focusKey = null;
   broadcast(stateMsg());
   render();
@@ -1057,8 +1096,11 @@ function renderStage(ps) {
   const st = $('#stage');
   const tiles = [];
   for (const u of ps) {
-    const scr = u.isMe ? (me.sharing && screenStream) : (u.screenIn && u.screenIn.stream);
-    if (scr) tiles.push({ key: 's:' + u.id, type: 'screen', u, stream: scr });
+    if (u.isMe && me.sharing && screenStream) tiles.push({ key: 's:me', type: 'screen', u, stream: screenStream });
+    if (!u.isMe && u.sharing) {
+      if (u.watching && u.screenIn && u.screenIn.stream) tiles.push({ key: 's:' + u.id, type: 'screen', u, stream: u.screenIn.stream });
+      else tiles.push({ key: 's:' + u.id, type: u.watching ? 'loading' : 'preview', u });
+    }
     tiles.push({ key: 'u:' + u.id, type: 'user', u });
   }
   if (focusKey && !tiles.some(t => t.key === focusKey)) focusKey = null;
@@ -1071,12 +1113,40 @@ function renderStage(ps) {
       d.dataset.sp = t.u.id;
       d.innerHTML = `<div class="av lg" style="background:${t.u.color}">${esc(initials(t.u.name))}</div>
         <div class="tag">${t.u.muted ? ic('mic', 14, true) : ''}${t.u.deaf ? ic('head', 14, true) : ''}<span>${esc(t.u.name)}${t.u.isMe ? ' (você)' : ''}</span></div>`;
+    } else if (t.type === 'preview' || t.type === 'loading') {
+      d.className = 'tile preview';
+      d.innerHTML = `<div class="pv"><div class="av lg" style="background:${t.u.color}">${esc(initials(t.u.name))}</div>
+        <div class="pvt"><span class="live">AO VIVO</span> <b>${esc(t.u.name)}</b> está transmitindo</div>
+        ${t.type === 'loading' ? '<div class="pvl">Conectando à transmissão…</div><button class="btn gray" data-leave>Cancelar</button>' : '<button class="btn" data-watch>Assistir transmissão</button>'}</div>`;
     } else {
       d.appendChild(vidFor(t.key, t.stream, t.u.isMe));
-      d.insertAdjacentHTML('beforeend', `<div class="tag"><span class="live">AO VIVO</span><span>${esc(t.u.name)}${t.u.isMe ? ' (você)' : ''}</span></div>
-        <div class="tools"><button class="tbtn" data-fs title="Tela cheia">${ic('fs', 18)}</button></div>`);
+      const watching = t.u.isMe ? watchers.size : 0;
+      const vol = t.u.isMe ? 0 : streamVol(t.u), muted = !t.u.isMe && (t.u.streamMuted || vol === 0);
+      d.insertAdjacentHTML('beforeend', `<div class="tag"><span class="live">AO VIVO</span><span>${esc(t.u.name)}${t.u.isMe ? ' (você) · ' + (watching ? watching + (watching === 1 ? ' assistindo' : ' assistindo') : 'ninguém assistindo ainda') : ''}</span></div>
+        <div class="tools">
+          ${t.u.isMe ? '' : `<div class="ctl volbox" title="Volume da transmissão"><button class="tbtn" data-smute title="${muted ? 'Ativar som' : 'Silenciar transmissão'}">${ic('spk', 18, muted)}</button><input type="range" min="0" max="100" value="${t.u.streamMuted ? 0 : vol}" data-svol><span class="vv">${t.u.streamMuted ? 0 : vol}%</span></div>
+          <button class="tbtn wide" data-leave title="Parar de assistir">Sair da transmissão</button>`}
+          <button class="tbtn" data-fs title="Tela cheia">${ic('fs', 18)}</button></div>`);
+      const rng = d.querySelector('[data-svol]');
+      if (rng) {
+        const lab = d.querySelector('.vv'), mb = d.querySelector('[data-smute]');
+        rng.addEventListener('input', () => {
+          S.streamVol[t.u.name] = +rng.value; t.u.streamMuted = false; save();
+          lab.textContent = rng.value + '%'; mb.innerHTML = ic('spk', 18, +rng.value === 0); applyAll();
+        });
+        mb.addEventListener('click', e => {
+          e.stopPropagation();
+          t.u.streamMuted = !t.u.streamMuted;
+          if (!t.u.streamMuted && streamVol(t.u) === 0) { S.streamVol[t.u.name] = 50; save(); }
+          renderStage(participants());
+        });
+      }
     }
     d.onclick = e => {
+      if (e.target.closest('.ctl')) { e.stopPropagation(); return; }
+      if (e.target.closest('[data-watch]')) { e.stopPropagation(); watchStream(t.u.id); return; }
+      if (e.target.closest('[data-leave]')) { e.stopPropagation(); leaveStream(t.u.id); return; }
+      if (t.type !== 'screen') { if (t.type === 'preview') return; }
       if (e.target.closest('[data-fs]')) { e.stopPropagation(); if (document.fullscreenElement) document.exitFullscreen(); else d.requestFullscreen && d.requestFullscreen().catch(() => {}); return; }
       focusKey = focusKey === t.key ? null : t.key;
       renderStage(participants());
@@ -1103,7 +1173,7 @@ function vidFor(key, stream, local) {
   let v = vidCache.get(key);
   if (!v) { v = document.createElement('video'); v.autoplay = true; v.playsInline = true; vidCache.set(key, v); }
   if (v.srcObject !== stream) v.srcObject = stream;
-  v.muted = local || me.deaf;
+  if (local) v.muted = true;
   v.play().catch(() => { if (!local) needGesture(); });
   return v;
 }
