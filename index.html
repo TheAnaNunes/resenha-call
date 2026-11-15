@@ -183,6 +183,10 @@ svg{flex-shrink:0;display:block}
 
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111214;color:var(--head);padding:10px 16px;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:60;font-size:14px;max-width:90vw;transition:opacity .2s}
 .gesture{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:55}
+.netwarn{margin:0 16px;background:rgba(240,178,50,.12);border:1px solid rgba(240,178,50,.45);color:#f5d590;border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.5}
+.netwarn b{color:#ffe2a3}
+.netwarn button{color:#fff;text-decoration:underline;font-weight:600}
+.turnres{font-size:13px;margin-top:10px;min-height:18px}
 </style>
 </head>
 <body>
@@ -245,6 +249,7 @@ svg{flex-shrink:0;display:block}
       <button class="hbtn" id="hChat"></button>
     </div>
     <div class="stage" id="stage"></div>
+    <div class="netwarn hidden" id="netwarn"></div>
     <div class="controls">
       <button class="cbtn" id="cMute" title="Silenciar"></button>
       <button class="cbtn" id="cShare" title="Transmitir uma janela"></button>
@@ -268,6 +273,7 @@ svg{flex-shrink:0;display:block}
     <button class="sitem active" data-tab="voz">Voz e áudio</button>
     <button class="sitem" data-tab="ruido">Supressão de ruído</button>
     <button class="sitem" data-tab="tela">Transmissão de tela</button>
+    <button class="sitem" data-tab="conexao">Conexão</button>
     <button class="sitem" data-tab="notif">Notificações</button>
   </div></div>
   <div class="sbody"><div>
@@ -354,6 +360,21 @@ svg{flex-shrink:0;display:block}
       </div>
     </section>
 
+    <!-- CONEXAO -->
+    <section data-pane="conexao" class="hidden">
+      <h2>Conexão</h2>
+      <div class="note">A chamada vai direto de PC para PC. Se a internet de alguém bloqueia isso (CGNAT, rede de celular, firewall), vocês entram no mesmo código mas não se encontram. Duas soluções:</div>
+      <h3>Opção 1 — Radmin VPN (mais fácil)</h3>
+      <div class="rd" style="color:var(--text);font-size:14px;line-height:1.7">1. Todos entram na mesma rede do Radmin VPN (igual no Minecraft).<br>2. Com o Radmin ligado, recarreguem esta página e entrem no mesmo código de sala.<br>3. Permita o microfone quando o navegador pedir — é isso que libera a conexão pelo IP do Radmin.</div>
+      <h3>Opção 2 — Servidor TURN (retransmissão)</h3>
+      <div class="rd" style="color:var(--muted);font-size:13px;line-height:1.5;margin-bottom:10px">Crie uma conta gratuita num serviço de TURN (ex.: metered.ca) e cole os dados aqui. <b>Todos</b> da chamada precisam colar os mesmos dados.</div>
+      <div class="lbl">URL(s) do servidor</div><input class="inp" data-k="turnUrl" placeholder="turn:servidor.com:443?transport=tcp, turn:servidor.com:80" autocomplete="off">
+      <div class="grid2"><div><div class="lbl">Usuário</div><input class="inp" data-k="turnUser" autocomplete="off"></div><div><div class="lbl">Senha / credencial</div><input class="inp" data-k="turnPass" type="password" autocomplete="off"></div></div>
+      <div style="display:flex;gap:10px;margin-top:14px"><button class="btn gray" id="turnTest">Testar servidor</button></div>
+      <div class="turnres" id="turnRes"></div>
+      <div class="rd" style="color:var(--muted);font-size:12px;margin-top:6px">Depois de salvar, saia e entre de novo na chamada para usar o servidor.</div>
+    </section>
+
     <!-- NOTIF -->
     <section data-pane="notif" class="hidden">
       <h2>Notificações</h2>
@@ -384,7 +405,7 @@ const DEF = {
   ns: true, ec: true, agc: true, gate: true, gateAuto: true, gateDb: -50, highpass: true, lowpass: false,
   mode: 'vad', pttKey: 'KeyV', pttDelay: 200,
   surface: 'window', screenAudio: true, screenQuality: '1080p30', screenHint: 'motion',
-  sounds: true, msgSound: true, userVol: {}
+  sounds: true, msgSound: true, userVol: {}, turnUrl: '', turnUser: '', turnPass: ''
 };
 const S = Object.assign({}, DEF, store.get('resenha.settings', {}));
 const save = () => store.set('resenha.settings', S);
@@ -433,6 +454,17 @@ let chatOpen = false, unread = 0, testing = false;
 const peers = new Map();
 const vidCache = new Map();
 const pendingOut = new Set();
+const unavailable = new Set(); // slots vazios (o servidor disse que não existe ninguém)
+const blocked = new Set();     // gente que está na sala mas a rede não deixou conectar
+function iceServers() {
+  const l = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: 'stun:stun.cloudflare.com:3478' }
+  ];
+  const urls = (S.turnUrl || '').split(/[\s,]+/).filter(Boolean);
+  if (urls.length) l.push({ urls, username: S.turnUser, credential: S.turnPass });
+  return l;
+}
 
 /* =========================== motor de áudio =========================== */
 // Gate de ruído + medidor rodando na thread de áudio (não trava com a aba em segundo plano)
@@ -568,7 +600,7 @@ function sound(type) {
 /* =========================== conexão P2P (PeerJS) =========================== */
 function tryOpen(id) {
   return new Promise(res => {
-    const p = new Peer(id, { debug: 0 });
+    const p = new Peer(id, { debug: 0, config: { iceServers: iceServers() } });
     let done = false;
     const finish = v => { if (done) return; done = true; if (v !== true) p.destroy(); else peer = p; res(v); };
     p.on('open', () => finish(true));
@@ -614,7 +646,7 @@ function setupPeer() {
   peer.on('disconnected', () => { render(); if (!peer.destroyed) setTimeout(() => { try { peer.reconnect(); } catch {} }, 1500); });
   peer.on('open', () => render());
   peer.on('error', e => {
-    if (e.type === 'peer-unavailable') return;
+    if (e.type === 'peer-unavailable') { const m = /peer\s+(\S+)/.exec(e.message || ''); if (m) unavailable.add(m[1]); return; }
     console.warn('peer error', e.type, e);
     if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(e.type)) toast('Instabilidade na conexão com o servidor… tentando de novo.');
   });
@@ -629,10 +661,18 @@ function scan() {
     const p = peers.get(id);
     if (p && p.conn && p.conn.open) continue;
     pendingOut.add(id);
+    unavailable.delete(id);
     const c = peer.connect(id, { reliable: true });
     c._out = true;
     wireConn(c);
-    setTimeout(() => { pendingOut.delete(id); if (!c.open) { c._dup = true; try { c.close(); } catch {} } }, 15000);
+    setTimeout(() => {
+      pendingOut.delete(id);
+      if (!c.open) {
+        const p2 = peers.get(id);
+        if (!unavailable.has(id) && !(p2 && p2.conn && p2.conn.open)) markBlocked(id);
+        c._dup = true; try { c.close(); } catch {}
+      }
+    }, 15000);
   }
 }
 
@@ -642,7 +682,18 @@ function getPeer(id) {
   return p;
 }
 
+function markBlocked(id) { if (!blocked.has(id)) { blocked.add(id); renderNetWarn(); } }
+function renderNetWarn() {
+  for (const id of [...blocked]) { const p = peers.get(id); if (p && p.conn && p.conn.open) blocked.delete(id); }
+  const el = $('#netwarn');
+  el.classList.toggle('hidden', !blocked.size);
+  if (!blocked.size) return;
+  el.innerHTML = `⚠ <b>Tem ${blocked.size === 1 ? 'alguém' : blocked.size + ' pessoas'} nesta sala que não conseguimos conectar</b> — a internet de um de vocês bloqueia conexão direta. ` +
+    `Liguem o <b>Radmin VPN</b> na mesma rede e recarreguem a página, ou configurem um servidor TURN. <button id="nwHelp">Ver como</button>`;
+  $('#nwHelp').onclick = () => openSettings('conexao');
+}
 function wireConn(c) {
+  if (!c._out) setTimeout(() => { const p = peers.get(c.peer); if (!c.open && !(p && p.conn && p.conn.open)) markBlocked(c.peer); }, 20000);
   c.on('open', () => onConnOpen(c));
   c.on('data', d => onData(c, d));
   c.on('close', () => onConnClose(c));
@@ -662,6 +713,7 @@ function onConnOpen(c) {
     return;
   }
   p.conn = c;
+  if (blocked.delete(id)) renderNetWarn();
   sendState(c);
   if (me.id < id) callAudio(id);
   if (me.sharing && screenStream) callScreen(id);
@@ -1174,6 +1226,24 @@ function toggleTest() {
 }
 $('#testBtn').onclick = toggleTest;
 $('#pttKeyBtn').onclick = () => { capturingKey = true; syncSettingsUI(); };
+
+$('#turnTest').onclick = async () => {
+  const res = $('#turnRes');
+  const urls = (S.turnUrl || '').split(/[\s,]+/).filter(Boolean);
+  if (!urls.length) { res.style.color = 'var(--muted)'; res.textContent = 'Cole a URL do servidor primeiro.'; return; }
+  res.style.color = 'var(--muted)'; res.textContent = 'Testando…';
+  try {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls, username: S.turnUser, credential: S.turnPass }], iceTransportPolicy: 'relay' });
+    pc.createDataChannel('t');
+    let ok = false;
+    pc.onicecandidate = e => { if (e.candidate && e.candidate.type === 'relay') ok = true; };
+    await pc.setLocalDescription(await pc.createOffer());
+    await new Promise(r => setTimeout(r, 6000));
+    pc.close();
+    res.style.color = ok ? 'var(--green)' : '#fa777c';
+    res.textContent = ok ? '✔ Servidor funcionando! Saia e entre de novo na chamada.' : '✖ Não respondeu. Confira URL, usuário e senha.';
+  } catch (e) { res.style.color = '#fa777c'; res.textContent = '✖ Erro: ' + (e.message || e.name); }
+};
 
 /* ---------- teclado ---------- */
 const isTyping = e => e.target && (e.target.tagName === 'INPUT' && e.target.type === 'text' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT');
