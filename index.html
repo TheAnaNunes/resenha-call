@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Resenha — Sala de Voz</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+:root{--bg0:#1e1f22;--bg1:#2b2d31;--bg2:#313338;--bg3:#383a40;--bg4:#404249;--panel:#232428;--stage:#111214;--text:#dbdee1;--muted:#949ba4;--head:#f2f3f5;--blurple:#5865f2;--blurple-h:#4752c4;--green:#23a55a;--red:#f23f43;--red-h:#da373c;--yellow:#f0b232}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg0);color:var(--text);font-family:'Noto Sans','Segoe UI',system-ui,sans-serif;font-size:15px;overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,select{font:inherit;color:var(--text)}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:#1a1b1e;border-radius:4px}::-webkit-scrollbar-track{background:transparent}
+.hidden{display:none!important}
+svg{flex-shrink:0;display:block}
+
+/* ---------- Lobby ---------- */
+.lobby{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 20% 20%,#7983f5 0,transparent 40%),radial-gradient(circle at 80% 80%,#3c45a5 0,transparent 45%),#5865f2;z-index:50}
+.card{background:var(--bg2);border-radius:8px;padding:32px;width:min(480px,92vw);box-shadow:0 8px 32px rgba(0,0,0,.35)}
+.card h1{color:var(--head);text-align:center;font-size:24px;margin-bottom:6px}
+.card .sub{color:var(--muted);text-align:center;margin-bottom:22px}
+.lbl{display:block;font-size:12px;font-weight:700;text-transform:uppercase;color:#b5bac1;margin:14px 0 8px;letter-spacing:.02em}
+.inp{width:100%;background:var(--bg0);border:0;border-radius:4px;padding:10px;outline:none;font-size:16px}
+.inp:focus{box-shadow:0 0 0 2px var(--blurple)}
+.btn{background:var(--blurple);color:#fff;border-radius:4px;padding:10px 16px;font-weight:600;transition:background .15s}
+.btn:hover{background:var(--blurple-h)}
+.btn.block{width:100%;margin-top:22px;padding:12px;font-size:16px}
+.btn.gray{background:var(--bg4)}.btn.gray:hover{background:#4e5058}
+.btn.red{background:var(--red)}.btn.red:hover{background:var(--red-h)}
+.btn:disabled{opacity:.5;cursor:default}
+.lstatus{margin-top:12px;font-size:14px;color:var(--muted);min-height:20px;text-align:center}
+.lstatus.err{color:#fa777c}
+.foot{margin-top:18px;font-size:12px;color:var(--muted);text-align:center;line-height:1.5}
+.logo{width:72px;height:72px;margin:0 auto 14px;border-radius:22px;background:var(--blurple);display:grid;place-items:center;color:#fff}
+
+/* ---------- App ---------- */
+.app{display:grid;grid-template-columns:72px 240px 1fr auto;height:100vh}
+.rail{background:var(--bg0);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:8px}
+.srv{width:48px;height:48px;border-radius:50%;background:var(--bg2);display:grid;place-items:center;font-weight:700;transition:border-radius .15s,background .15s;position:relative;color:var(--head);font-size:15px}
+.srv:hover,.srv.active{border-radius:16px;background:var(--blurple)}
+.srv.active::before{content:'';position:absolute;left:-12px;width:4px;height:40px;background:#fff;border-radius:0 4px 4px 0}
+.srv.add{color:var(--green)}.srv.add:hover{background:var(--green);color:#fff}
+.rail .sep{width:32px;height:2px;background:var(--bg3);border-radius:1px}
+
+.sidebar{background:var(--bg1);display:flex;flex-direction:column;min-width:0}
+.sb-head{height:48px;padding:0 12px 0 16px;display:flex;align-items:center;justify-content:space-between;font-weight:700;color:var(--head);box-shadow:0 1px 0 rgba(0,0,0,.25);gap:8px}
+.sb-head span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.channels{flex:1;overflow:auto;padding:8px}
+.cat{font-size:12px;font-weight:700;text-transform:uppercase;color:var(--muted);padding:16px 8px 4px;letter-spacing:.02em}
+.ch{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:4px;color:var(--muted);font-weight:500;cursor:pointer;margin:1px 0}
+.ch:hover{background:var(--bg3);color:var(--text)}.ch.active{background:var(--bg4);color:var(--head)}
+.badge{margin-left:auto;background:var(--red);color:#fff;font-size:11px;font-weight:800;border-radius:8px;padding:0 6px;min-width:16px;text-align:center}
+.vusers{padding-left:24px}
+.vu{display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px;color:var(--muted);font-size:14px;cursor:pointer;margin:1px 0}
+.vu:hover{background:var(--bg3);color:var(--text)}
+.vu .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vu .right{margin-left:auto;display:flex;gap:4px;align-items:center;color:var(--red)}
+.av{border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;flex-shrink:0;transition:box-shadow .08s}
+.av.sm{width:24px;height:24px;font-size:10px}
+.av.md{width:32px;height:32px;font-size:12px}
+.av.lg{width:84px;height:84px;font-size:30px}
+.speaking>.av,.av.speaking{box-shadow:0 0 0 2px var(--bg1),0 0 0 4px var(--green)}
+.live{background:var(--red);color:#fff;font-size:10px;font-weight:800;padding:1px 6px;border-radius:8px;letter-spacing:.02em}
+
+.vconn{background:var(--panel);padding:8px 10px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,.04)}
+.vconn .t{color:var(--green);font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px}
+.vconn .t.wait{color:var(--yellow)}
+.vconn .s{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vconn .grow{flex:1;min-width:0}
+.upanel{background:var(--panel);height:52px;padding:0 8px;display:flex;align-items:center;gap:8px}
+.upanel .who{flex:1;min-width:0;line-height:1.2}
+.upanel .nm{font-size:14px;font-weight:600;color:var(--head);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.upanel .st{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ibtn{width:32px;height:32px;border-radius:4px;display:grid;place-items:center;color:#b5bac1}
+.ibtn:hover{background:var(--bg4);color:var(--text)}
+.ibtn.off{color:var(--red)}
+.ibtn.danger:hover{color:var(--red)}
+
+.main{display:flex;flex-direction:column;min-width:0;background:var(--stage)}
+.mhead{height:48px;background:var(--bg2);display:flex;align-items:center;padding:0 16px;gap:8px;box-shadow:0 1px 0 rgba(0,0,0,.25);color:var(--head);font-weight:700;z-index:2}
+.mhead .room{color:var(--muted);font-weight:500;font-size:14px;margin-left:4px}
+.mhead .sp{flex:1}
+.hbtn{display:flex;align-items:center;gap:6px;color:#b5bac1;padding:6px 8px;border-radius:4px;font-size:14px;font-weight:500;position:relative}
+.hbtn:hover{color:var(--head);background:var(--bg3)}
+.hbtn .badge{position:absolute;top:0;right:0;font-size:10px}
+
+.stage{flex:1;padding:16px;display:grid;gap:10px;align-content:center;justify-content:center;grid-template-columns:repeat(auto-fit,minmax(240px,440px));overflow:auto}
+.tile{position:relative;background:var(--bg1);border-radius:8px;aspect-ratio:16/9;display:grid;place-items:center;overflow:hidden;cursor:pointer}
+.tile.user.speaking{box-shadow:inset 0 0 0 3px var(--green)}
+.tile.user .av.lg{box-shadow:none}
+.tile video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+.tile .tag{position:absolute;left:8px;bottom:8px;background:rgba(0,0,0,.6);padding:3px 8px;border-radius:4px;font-size:13px;font-weight:600;display:flex;gap:6px;align-items:center;color:#fff;max-width:calc(100% - 16px)}
+.tile .tag span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tile .tag svg{color:var(--red)}
+.tile .tools{position:absolute;right:8px;top:8px;display:none;gap:4px}
+.tile:hover .tools{display:flex}
+.tbtn{width:32px;height:32px;border-radius:4px;background:rgba(0,0,0,.6);display:grid;place-items:center;color:#fff}
+.tbtn:hover{background:rgba(0,0,0,.85)}
+.tile.invite{background:transparent;border:2px dashed var(--bg4);cursor:default;text-align:center;padding:16px;color:var(--muted);font-size:14px;align-content:center;gap:10px}
+.tile.invite b{color:var(--head);font-size:16px}
+.stage.focus{display:flex;flex-direction:column;padding:12px;gap:10px}
+.stage.focus .big{flex:1;min-height:0;display:flex}
+.stage.focus .big .tile{flex:1;aspect-ratio:auto}
+.stage.focus .strip{display:flex;gap:8px;height:110px;justify-content:center;flex-shrink:0;overflow-x:auto}
+.stage.focus .strip .tile{height:100%;width:auto;flex-shrink:0}
+.stage.focus .strip .av.lg{width:48px;height:48px;font-size:18px}
+
+.controls{display:flex;justify-content:center;gap:14px;padding:14px 0 18px}
+.cbtn{width:56px;height:56px;border-radius:50%;background:var(--bg3);display:grid;place-items:center;color:var(--head);transition:background .15s}
+.cbtn:hover{background:var(--bg4)}
+.cbtn.off{background:#fff;color:var(--red)}
+.cbtn.active{background:var(--green);color:#fff}
+.cbtn.danger{background:var(--red)}.cbtn.danger:hover{background:var(--red-h)}
+
+.chat{width:340px;background:var(--bg2);display:flex;flex-direction:column;border-left:1px solid var(--bg0)}
+.chat .chead{height:48px;display:flex;align-items:center;gap:6px;padding:0 12px 0 16px;font-weight:700;color:var(--head);box-shadow:0 1px 0 rgba(0,0,0,.25)}
+.chat .chead .sp{flex:1}
+.msgs{flex:1;overflow:auto;padding:12px 0}
+.msg{display:flex;gap:12px;padding:6px 16px}
+.msg:hover{background:rgba(0,0,0,.08)}
+.msg .mh{display:flex;gap:8px;align-items:baseline}
+.msg time{font-size:11px;color:var(--muted)}
+.msg .mt{white-space:pre-wrap;word-break:break-word;line-height:1.4}
+.msg .mt a{color:#00a8fc}
+.msg.sys{color:var(--muted);font-size:13px;align-items:baseline;justify-content:space-between}
+.msg.sys b{color:var(--text)}
+.cinput{margin:0 12px 16px;background:var(--bg3);border-radius:8px;display:flex}
+.cinput input{flex:1;background:none;border:0;outline:none;padding:11px 14px}
+
+/* ---------- Popover ---------- */
+.pop{position:fixed;background:#111214;border-radius:6px;padding:10px 12px;width:230px;box-shadow:0 8px 16px rgba(0,0,0,.4);z-index:40}
+.pop .ph{font-weight:700;color:var(--head);margin-bottom:8px}
+.pop label{display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#b5bac1;margin-top:8px;gap:8px;cursor:pointer}
+
+/* ---------- Settings ---------- */
+.settings{position:fixed;inset:0;display:flex;z-index:30;background:var(--bg2)}
+.snav{flex:1 0 218px;background:var(--bg1);display:flex;justify-content:flex-end;padding:60px 6px 20px 20px}
+.snav>div{width:200px}
+.snav .cat{padding:6px 10px}
+.sitem{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:4px;color:#b5bac1;font-weight:500;margin-bottom:2px}
+.sitem:hover{background:var(--bg3);color:var(--text)}.sitem.active{background:var(--bg4);color:var(--head)}
+.sbody{flex:1 1 800px;overflow:auto;padding:60px 40px 80px}
+.sbody>div{max-width:740px;position:relative}
+.sbody h2{color:var(--head);font-size:20px;margin-bottom:20px}
+.sbody h3{font-size:12px;font-weight:700;text-transform:uppercase;color:#b5bac1;margin:28px 0 10px;letter-spacing:.02em}
+.sclose{position:absolute;right:-60px;top:0;text-align:center;color:var(--muted);font-size:12px;font-weight:600}
+.sclose .x{width:36px;height:36px;border:2px solid #72767d;border-radius:50%;display:grid;place-items:center;margin-bottom:6px;color:#b5bac1}
+.sclose:hover .x{background:rgba(255,255,255,.08)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.sel{width:100%;background:var(--bg0);border:0;border-radius:4px;padding:10px;outline:none;cursor:pointer}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.row .rt{color:var(--head);font-weight:500}
+.row .rd{color:var(--muted);font-size:13px;margin-top:3px;line-height:1.4}
+.sw{position:relative;width:40px;height:24px;flex-shrink:0;cursor:pointer}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw span{position:absolute;inset:0;background:#80848e;border-radius:12px;transition:background .15s}
+.sw span::after{content:'';position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#fff;transition:transform .15s}
+.sw input:checked+span{background:var(--green)}
+.sw input:checked+span::after{transform:translateX(16px)}
+.sw input:disabled+span{opacity:.4;cursor:not-allowed}
+.rng{display:flex;align-items:center;gap:12px}
+.rng input[type=range]{flex:1;accent-color:var(--blurple);height:6px}
+.rng .v{width:52px;text-align:right;color:var(--muted);font-size:13px}
+.meter{position:relative;height:10px;border-radius:5px;background:var(--bg0);overflow:hidden;margin:10px 0 4px}
+.meter .fill{position:absolute;left:0;top:0;bottom:0;background:var(--yellow);transition:width .05s linear}
+.meter .fill.open{background:var(--green)}
+.meter .thr{position:absolute;top:-2px;bottom:-2px;width:3px;background:#fff;border-radius:2px;box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+.radio{display:flex;align-items:center;gap:10px;background:var(--bg1);border-radius:4px;padding:10px 12px;margin-bottom:8px;cursor:pointer;color:var(--text)}
+.radio:hover{background:var(--bg3)}
+.radio input{accent-color:var(--blurple);width:18px;height:18px}
+.presets{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.preset{background:var(--bg1);border:2px solid transparent;border-radius:8px;padding:14px;text-align:left;color:var(--text)}
+.preset:hover{background:var(--bg3)}
+.preset.active{border-color:var(--blurple);background:rgba(88,101,242,.12)}
+.preset b{display:block;color:var(--head);margin-bottom:4px}
+.preset small{color:var(--muted);font-size:12px;line-height:1.35;display:block}
+.note{background:rgba(88,101,242,.12);border-left:3px solid var(--blurple);padding:10px 12px;border-radius:4px;font-size:13px;color:#c9cdfb;line-height:1.45;margin-top:12px}
+.note.warn{background:rgba(240,178,50,.1);border-color:var(--yellow);color:#f5d590}
+.kbd{background:var(--bg0);border-radius:4px;padding:8px 14px;font-weight:700;color:var(--head);min-width:120px}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#111214;color:var(--head);padding:10px 16px;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:60;font-size:14px;max-width:90vw;transition:opacity .2s}
+.gesture{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:55}
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div class="lobby" id="lobby">
+  <div class="card">
+    <div class="logo" id="logo"></div>
+    <h1>Bora pra resenha!</h1>
+    <div class="sub">Chamada de voz + compartilhamento de tela com a galera</div>
+    <label class="lbl" for="nameIn">Seu nome</label>
+    <input class="inp" id="nameIn" maxlength="32" placeholder="Como te chamam?" autocomplete="off">
+    <label class="lbl" for="roomIn">Código da sala</label>
+    <input class="inp" id="roomIn" maxlength="40" placeholder="ex: resenha-sexta" autocomplete="off">
+    <button class="btn block" id="joinBtn">Entrar na chamada</button>
+    <div class="lstatus" id="lstatus"></div>
+    <div class="foot">Todo mundo que usar o mesmo código entra na mesma sala (até 12 pessoas).<br>Funciona melhor no Chrome ou Edge no computador.</div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app hidden" id="app">
+  <nav class="rail">
+    <button class="srv" title="Início" id="homeBtn"></button>
+    <div class="sep"></div>
+    <button class="srv active" id="roomIcon" title=""></button>
+    <button class="srv add" title="Convidar amigos" id="railInvite">+</button>
+  </nav>
+
+  <aside class="sidebar">
+    <div class="sb-head"><span id="sbRoom"></span><button class="ibtn" id="sbInvite" title="Copiar convite"></button></div>
+    <div class="channels">
+      <div class="cat">Canais de texto</div>
+      <div class="ch" id="chText"><span id="icHash"></span><span>geral</span><span class="badge hidden" id="chBadge">0</span></div>
+      <div class="cat">Canais de voz</div>
+      <div class="ch active"><span id="icSpk"></span><span>Sala de voz</span></div>
+      <div class="vusers" id="vusers"></div>
+    </div>
+    <div class="vconn">
+      <div class="grow">
+        <div class="t" id="vcT"></div>
+        <div class="s" id="vcS"></div>
+      </div>
+      <button class="ibtn danger" id="vcLeave" title="Desconectar"></button>
+    </div>
+    <div class="upanel">
+      <div class="av md" id="meAv" data-sp="me"></div>
+      <div class="who"><div class="nm" id="meNm"></div><div class="st" id="meSt"></div></div>
+      <button class="ibtn" id="bMute" title="Silenciar (Ctrl+Shift+M)"></button>
+      <button class="ibtn" id="bDeaf" title="Ensurdecer (Ctrl+Shift+D)"></button>
+      <button class="ibtn" id="bSet" title="Configurações"></button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="mhead">
+      <span id="icSpk2"></span><span>Sala de voz</span><span class="room" id="mhRoom"></span>
+      <span class="sp"></span>
+      <button class="hbtn" id="hInvite"></button>
+      <button class="hbtn" id="hChat"></button>
+    </div>
+    <div class="stage" id="stage"></div>
+    <div class="controls">
+      <button class="cbtn" id="cMute" title="Silenciar"></button>
+      <button class="cbtn" id="cShare" title="Transmitir uma janela"></button>
+      <button class="cbtn" id="cDeaf" title="Ensurdecer"></button>
+      <button class="cbtn" id="cSet" title="Configurações"></button>
+      <button class="cbtn danger" id="cLeave" title="Desconectar"></button>
+    </div>
+  </main>
+
+  <section class="chat hidden" id="chat">
+    <div class="chead"><span id="icHash2"></span>geral<span class="sp"></span><button class="ibtn" id="chatClose"></button></div>
+    <div class="msgs" id="msgs"></div>
+    <form class="cinput" id="chatForm"><input id="chatIn" maxlength="2000" placeholder="Conversar em #geral" autocomplete="off"></form>
+  </section>
+</div>
+
+<!-- SETTINGS -->
+<div class="settings hidden" id="settings">
+  <div class="snav"><div>
+    <div class="cat">Configurações do app</div>
+    <button class="sitem active" data-tab="voz">Voz e áudio</button>
+    <button class="sitem" data-tab="ruido">Supressão de ruído</button>
+    <button class="sitem" data-tab="tela">Transmissão de tela</button>
+    <button class="sitem" data-tab="notif">Notificações</button>
+  </div></div>
+  <div class="sbody"><div>
+    <button class="sclose" id="setClose"><div class="x" id="icX"></div>ESC</button>
+
+    <!-- VOZ -->
+    <section data-pane="voz">
+      <h2>Voz e áudio</h2>
+      <div class="grid2">
+        <div><div class="lbl">Dispositivo de entrada</div><select class="sel" data-k="inputDevice" id="selIn"></select></div>
+        <div><div class="lbl">Dispositivo de saída</div><select class="sel" data-k="outputDevice" id="selOut"></select></div>
+        <div><div class="lbl">Volume de entrada</div><div class="rng"><input type="range" min="0" max="200" data-k="inputVol"><span class="v" data-v="inputVol"></span></div></div>
+        <div><div class="lbl">Volume de saída</div><div class="rng"><input type="range" min="0" max="100" data-k="outputVol"><span class="v" data-v="outputVol"></span></div></div>
+      </div>
+
+      <h3>Teste de microfone</h3>
+      <div class="rd" style="color:var(--muted);font-size:13px">Use fones de ouvido e fale algo — você vai ouvir sua própria voz já com os filtros aplicados.</div>
+      <div style="display:flex;gap:12px;align-items:center;margin-top:10px">
+        <button class="btn" id="testBtn">Vamos verificar</button>
+        <div style="flex:1"><div class="meter"><div class="fill" id="tFill"></div></div></div>
+      </div>
+
+      <h3>Modo de entrada</h3>
+      <label class="radio"><input type="radio" name="mode" value="vad" data-k="mode"> Detecção de voz</label>
+      <label class="radio"><input type="radio" name="mode" value="ptt" data-k="mode"> Pressione para falar</label>
+      <div id="pttBox">
+        <div class="row">
+          <div><div class="rt">Tecla de atalho</div><div class="rd">Segure para falar (funciona com esta aba em foco).</div></div>
+          <button class="kbd" id="pttKeyBtn"></button>
+        </div>
+        <div style="padding-top:12px"><div class="lbl" style="margin-top:0">Atraso para soltar</div><div class="rng"><input type="range" min="0" max="1000" step="20" data-k="pttDelay"><span class="v" data-v="pttDelay"></span></div></div>
+      </div>
+
+      <h3>Sensibilidade de entrada</h3>
+      <div class="row" style="border:0;padding-top:0">
+        <div><div class="rt">Determinar automaticamente a sensibilidade</div><div class="rd">Aprende o nível do ruído de fundo e só abre o microfone quando você fala.</div></div>
+        <label class="sw"><input type="checkbox" data-k="gateAuto"><span></span></label>
+      </div>
+      <div class="meter" style="height:14px"><div class="fill" id="sFill"></div><div class="thr" id="sThr"></div></div>
+      <div class="rng"><input type="range" min="-100" max="0" data-k="gateDb" id="gateRange"><span class="v" data-v="gateDb"></span></div>
+      <div class="rd" style="color:var(--muted);font-size:12px;margin-top:4px">Barra verde = microfone aberto (transmitindo). Amarela = abaixo do limite, ninguém ouve.</div>
+    </section>
+
+    <!-- RUIDO -->
+    <section data-pane="ruido" class="hidden">
+      <h2>Supressão de ruído</h2>
+      <div class="presets" id="presets">
+        <button class="preset" data-preset="off"><b>Desligada</b><small>Áudio cru do microfone. Bom para microfones de estúdio.</small></button>
+        <button class="preset" data-preset="padrao"><b>Padrão</b><small>Supressão do navegador + gate automático + corte de graves.</small></button>
+        <button class="preset" data-preset="forte"><b>Forte</b><small>Tudo do Padrão + corte de chiado. Para ventilador, teclado, rua.</small></button>
+      </div>
+      <div class="rd" id="presetLbl" style="color:var(--muted);font-size:12px;margin-top:8px"></div>
+
+      <h3>Processamento de voz</h3>
+      <div class="row"><div><div class="rt">Supressão de ruído</div><div class="rd">Remove ruídos constantes (ventilador, ar-condicionado, chiado) usando o processamento do navegador.</div></div><label class="sw"><input type="checkbox" data-k="ns"><span></span></label></div>
+      <div class="row"><div><div class="rt">Cancelamento de eco</div><div class="rd">Evita que seus amigos se ouçam de volta quando você usa caixa de som.</div></div><label class="sw"><input type="checkbox" data-k="ec"><span></span></label></div>
+      <div class="row"><div><div class="rt">Controle automático de ganho</div><div class="rd">Ajusta o volume da sua voz automaticamente para não ficar baixo nem estourado.</div></div><label class="sw"><input type="checkbox" data-k="agc"><span></span></label></div>
+      <div class="row"><div><div class="rt">Gate de ruído</div><div class="rd">Silencia o microfone totalmente quando o som fica abaixo da sensibilidade de entrada.</div></div><label class="sw"><input type="checkbox" data-k="gate"><span></span></label></div>
+      <div class="row"><div><div class="rt">Filtro de graves (corta zumbido)</div><div class="rd">Corta frequências abaixo de 100 Hz: ronco de ventilador, vibração da mesa, zumbido elétrico.</div></div><label class="sw"><input type="checkbox" data-k="highpass"><span></span></label></div>
+      <div class="row"><div><div class="rt">Filtro de chiado</div><div class="rd">Corta frequências acima de 7,5 kHz: chiado de microfone barato e sibilância.</div></div><label class="sw"><input type="checkbox" data-k="lowpass"><span></span></label></div>
+      <div class="note">Mudar Supressão de ruído, Eco ou Ganho reinicia o microfone por um instante. Os filtros e o gate são aplicados na hora.</div>
+    </section>
+
+    <!-- TELA -->
+    <section data-pane="tela" class="hidden">
+      <h2>Transmissão de tela</h2>
+      <h3>O que pode ser transmitido</h3>
+      <label class="radio"><input type="radio" name="surface" value="window" data-k="surface"> Somente uma janela (recomendado)</label>
+      <label class="radio"><input type="radio" name="surface" value="any" data-k="surface"> Qualquer coisa (tela inteira, janela ou aba)</label>
+      <div class="row"><div><div class="rt">Transmitir o áudio da janela</div><div class="rd">Envia só o som do app/jogo escolhido — nada do resto do PC, nem as vozes da chamada.</div></div><label class="sw"><input type="checkbox" data-k="screenAudio"><span></span></label></div>
+      <div class="note warn">O áudio só de uma janela depende do navegador: Chrome/Edge recentes no Windows oferecem a opção "Compartilhar áudio da janela" no seletor. Se não aparecer, transmitir uma <b>aba</b> do navegador com áudio funciona em qualquer versão. Nunca é enviado o áudio do sistema todo.</div>
+      <h3>Qualidade</h3>
+      <div class="grid2">
+        <div><div class="lbl">Resolução e taxa de quadros</div><select class="sel" data-k="screenQuality">
+          <option value="720p30">720p — 30 FPS</option>
+          <option value="1080p30">1080p — 30 FPS</option>
+          <option value="1080p60">1080p — 60 FPS</option>
+          <option value="1440p60">1440p — 60 FPS (internet boa)</option>
+        </select></div>
+        <div><div class="lbl">Otimizar para</div><select class="sel" data-k="screenHint">
+          <option value="motion">Movimento (jogos, vídeos)</option>
+          <option value="detail">Nitidez (texto, código)</option>
+        </select></div>
+      </div>
+    </section>
+
+    <!-- NOTIF -->
+    <section data-pane="notif" class="hidden">
+      <h2>Notificações</h2>
+      <div class="row"><div><div class="rt">Sons da chamada</div><div class="rd">Toca um som quando alguém entra, sai, ou você se silencia.</div></div><label class="sw"><input type="checkbox" data-k="sounds"><span></span></label></div>
+      <div class="row"><div><div class="rt">Som de mensagem</div><div class="rd">Toca um som quando chega mensagem no chat.</div></div><label class="sw"><input type="checkbox" data-k="msgSound"><span></span></label></div>
+      <h3>Atalhos</h3>
+      <div class="rd" style="color:var(--muted);font-size:14px;line-height:1.8">Ctrl + Shift + M — silenciar / ativar microfone<br>Ctrl + Shift + D — ensurdecer<br>Clique numa transmissão para focar; clique de novo para voltar à grade.<br>Clique num amigo na lista lateral para ajustar o volume dele.</div>
+    </section>
+  </div></div>
+</div>
+
+<div id="audios" class="hidden"></div>
+<div class="toast hidden" id="toast"></div>
+<button class="btn gesture hidden" id="gestureBtn">🔊 Clique aqui para ativar o áudio</button>
+
+<script>
+'use strict';
+/* =========================== utilidades =========================== */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+const DEF = {
+  inputDevice: 'default', outputDevice: 'default', inputVol: 100, outputVol: 100,
+  ns: true, ec: true, agc: true, gate: true, gateAuto: true, gateDb: -50, highpass: true, lowpass: false,
+  mode: 'vad', pttKey: 'KeyV', pttDelay: 200,
+  surface: 'window', screenAudio: true, screenQuality: '1080p30', screenHint: 'motion',
+  sounds: true, msgSound: true, userVol: {}
+};
+const S = Object.assign({}, DEF, store.get('resenha.settings', {}));
+const save = () => store.set('resenha.settings', S);
+const COLORS = ['#5865f2', '#eb459e', '#23a55a', '#f0b232', '#f23f43', '#9b59b6', '#1abc9c', '#e67e22'];
+const colorOf = n => { let h = 0; for (const c of n) h = (h * 31 + c.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; };
+const initials = n => (n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
+const sanitizeRoom = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
+const keyName = c => !c ? '—' : c === 'Space' ? 'Espaço' : c.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'Num ');
+const QUALITY = {
+  '720p30': { w: 1280, h: 720, fps: 30, br: 2500000 },
+  '1080p30': { w: 1920, h: 1080, fps: 30, br: 4500000 },
+  '1080p60': { w: 1920, h: 1080, fps: 60, br: 6500000 },
+  '1440p60': { w: 2560, h: 1440, fps: 60, br: 9000000 }
+};
+
+/* =========================== ícones =========================== */
+const ICONS = {
+  mic: '<path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/>',
+  head: '<path d="M12 3a9 9 0 0 0-9 9v6a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-6a9 9 0 0 0-9-9z"/>',
+  cog: '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></g>',
+  screen: '<g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></g><path d="M12 6.8l3.2 3.2H13v3.2h-2V10H8.8z"/>',
+  hang: '<path d="M21.6 14.2c-.4-1.3-4.2-3.2-9.6-3.2s-9.2 1.9-9.6 3.2l-.3 2.2c-.1.6.4 1.1 1 1l3.4-.6c.5-.1.8-.5.8-1v-1.9c1.4-.5 3-.7 4.7-.7s3.3.2 4.7.7v1.9c0 .5.3.9.8 1l3.4.6c.6.1 1.1-.4 1-1z"/>',
+  chat: '<path d="M4 4h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  spk: '<path d="M11 5L6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  hash: '<path d="M5 9h15M4 15h15M10 3L8 21M16 3l-2 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>',
+  link: '<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  fs: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  signal: '<path d="M4 18h2v2H4zM9 14h2v6H9zM14 10h2v10h-2zM19 6h2v14h-2z"/>',
+  home: '<path d="M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3z"/>',
+  wave: '<path d="M3 12h2M7 8v8M11 5v14M15 8v8M19 11v2" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>'
+};
+function ic(n, size = 20, off = false) {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">${ICONS[n]}${off ? '<path d="M3.5 3.5l17 17" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>' : ''}</svg>`;
+}
+
+/* =========================== estado =========================== */
+const PREFIX = 'resenha-v1-';
+const MAX_SLOTS = 12;
+const me = { id: null, name: '', color: '#5865f2', muted: false, deaf: false, sharing: false, speaking: false };
+let room = '', peer = null, micMissing = false;
+let ctx, hp, lp, inGain, gate, muteGain, dest, testGain, srcNode, rawStream, sendStream;
+let meter = { lv: -100, thr: -50, open: false };
+let screenStream = null, focusKey = null, pttHeld = false, pttTimer = null, capturingKey = false;
+let chatOpen = false, unread = 0, testing = false;
+const peers = new Map();
+const vidCache = new Map();
+const pendingOut = new Set();
+
+/* =========================== motor de áudio =========================== */
+// Gate de ruído + medidor rodando na thread de áudio (não trava com a aba em segundo plano)
+const WORKLET = `
+class ResenhaGate extends AudioWorkletProcessor {
+  static get parameterDescriptors(){return[
+    {name:'threshold',defaultValue:-50,automationRate:'k-rate'},
+    {name:'enabled',defaultValue:1,automationRate:'k-rate'},
+    {name:'auto',defaultValue:1,automationRate:'k-rate'}]}
+  constructor(){super();this.g=0;this.hold=0;this.lv=-100;this.floor=-60;this.k=0;}
+  process(ins,outs,p){
+    const i=ins[0]&&ins[0][0], out=outs[0];
+    if(!i){for(const o of out)o.fill(0);return true;}
+    let s=0;for(let n=0;n<i.length;n++)s+=i[n]*i[n];
+    const db=10*Math.log10(s/i.length+1e-10);
+    this.lv=db>this.lv?db:this.lv*0.93+db*0.07;
+    if(db<this.floor)this.floor=this.floor*0.7+db*0.3;else this.floor+=0.004;
+    const en=p.enabled[0]>0.5, auto=p.auto[0]>0.5;
+    const thr=auto?Math.min(-20,Math.max(-70,this.floor+14)):p.threshold[0];
+    if(!en||this.lv>thr)this.hold=Math.round(0.35*sampleRate/i.length);else if(this.hold>0)this.hold--;
+    const open=!en||this.hold>0, t=open?1:0, c=open?0.01:0.0008;
+    let g=this.g;
+    for(let n=0;n<i.length;n++){g+=(t-g)*c;for(const o of out)o[n]=i[n]*g;}
+    this.g=g;
+    if(++this.k%6===0)this.port.postMessage({lv:this.lv,thr,open});
+    return true;
+  }
+}
+registerProcessor('resenha-gate',ResenhaGate);`;
+
+async function ensureAudio() {
+  if (ctx) return;
+  ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+  hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.Q.value = 0.707;
+  lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 0.707;
+  inGain = ctx.createGain(); muteGain = ctx.createGain(); muteGain.gain.value = 0;
+  testGain = ctx.createGain(); testGain.gain.value = 0;
+  dest = ctx.createMediaStreamDestination();
+  try {
+    const url = URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' }));
+    await ctx.audioWorklet.addModule(url);
+    gate = new AudioWorkletNode(ctx, 'resenha-gate', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+    gate.port.onmessage = e => { meter = e.data; };
+  } catch (e) {
+    console.warn('AudioWorklet indisponível, gate desativado', e);
+    gate = ctx.createGain();
+    meter = { lv: -100, thr: -50, open: true };
+  }
+  hp.connect(lp).connect(inGain).connect(gate);
+  gate.connect(muteGain).connect(dest);
+  gate.connect(testGain).connect(ctx.destination);
+  sendStream = dest.stream;
+  applyFilters(); applyGate(); applyCtxSink();
+  try { await startMic(); }
+  catch (e) { micMissing = true; me.muted = true; toast('Sem microfone (' + (e.message || e.name) + '). Você entrou só ouvindo.'); }
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  updateTransmit();
+}
+
+async function startMic() {
+  const c = { echoCancellation: S.ec, noiseSuppression: S.ns, autoGainControl: S.agc, channelCount: 1 };
+  if (S.inputDevice && S.inputDevice !== 'default') c.deviceId = { exact: S.inputDevice };
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: c }); }
+  catch (e) {
+    if (c.deviceId && (e.name === 'OverconstrainedError' || e.name === 'NotFoundError')) {
+      delete c.deviceId; S.inputDevice = 'default'; save();
+      stream = await navigator.mediaDevices.getUserMedia({ audio: c });
+    } else throw e;
+  }
+  if (rawStream) rawStream.getTracks().forEach(t => t.stop());
+  if (srcNode) srcNode.disconnect();
+  rawStream = stream;
+  srcNode = ctx.createMediaStreamSource(rawStream);
+  srcNode.connect(hp);
+  micMissing = false;
+  rawStream.getAudioTracks()[0].addEventListener('ended', () => toast('O microfone foi desconectado.'));
+  refreshDevices();
+  render();
+}
+
+function applyFilters() {
+  if (!ctx) return;
+  hp.frequency.value = S.highpass ? 100 : 10;
+  lp.frequency.value = S.lowpass ? 7500 : Math.min(20000, ctx.sampleRate / 2 - 100);
+  inGain.gain.value = S.inputVol / 100;
+}
+function applyGate() {
+  if (!gate || !gate.parameters) return;
+  gate.parameters.get('enabled').value = S.gate ? 1 : 0;
+  gate.parameters.get('auto').value = S.gateAuto ? 1 : 0;
+  gate.parameters.get('threshold').value = S.gateDb;
+}
+function applyCtxSink() {
+  if (ctx && ctx.setSinkId) ctx.setSinkId(S.outputDevice === 'default' ? '' : S.outputDevice).catch(() => {});
+}
+const transmitting = () => !me.muted && !me.deaf && !micMissing && (S.mode === 'vad' || pttHeld);
+function updateTransmit() {
+  if (!muteGain) return;
+  muteGain.gain.setTargetAtTime(transmitting() ? 1 : 0, ctx.currentTime, 0.012);
+}
+
+async function refreshDevices() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  const list = await navigator.mediaDevices.enumerateDevices();
+  const fill = (sel, kind, cur) => {
+    const devs = list.filter(d => d.kind === kind && d.deviceId !== 'default' && d.deviceId !== 'communications');
+    sel.innerHTML = '<option value="default">Padrão do sistema</option>' +
+      devs.map((d, i) => `<option value="${esc(d.deviceId)}">${esc(d.label || (kind === 'audioinput' ? 'Microfone ' : 'Saída ') + (i + 1))}</option>`).join('');
+    sel.value = devs.some(d => d.deviceId === cur) ? cur : 'default';
+  };
+  fill($('#selIn'), 'audioinput', S.inputDevice);
+  fill($('#selOut'), 'audiooutput', S.outputDevice);
+  const canSink = 'setSinkId' in HTMLMediaElement.prototype;
+  $('#selOut').disabled = !canSink;
+  if (!canSink) $('#selOut').innerHTML = '<option>Seu navegador não permite escolher</option>';
+}
+navigator.mediaDevices && navigator.mediaDevices.addEventListener && navigator.mediaDevices.addEventListener('devicechange', refreshDevices);
+
+function sound(type) {
+  if (!ctx) return;
+  if (type === 'msg' ? !S.msgSound : !S.sounds) return;
+  const seq = { join: [523, 784], leave: [659, 392], mute: [494, 330], unmute: [330, 494], msg: [988], share: [440, 660, 880] }[type];
+  const t = ctx.currentTime;
+  seq.forEach((f, i) => {
+    const o = ctx.createOscillator(), g = ctx.createGain(), s = t + i * 0.085;
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0, s); g.gain.linearRampToValueAtTime(0.1, s + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.17);
+    o.connect(g).connect(ctx.destination); o.start(s); o.stop(s + 0.2);
+  });
+}
+
+/* =========================== conexão P2P (PeerJS) =========================== */
+function tryOpen(id) {
+  return new Promise(res => {
+    const p = new Peer(id, { debug: 0 });
+    let done = false;
+    const finish = v => { if (done) return; done = true; if (v !== true) p.destroy(); else peer = p; res(v); };
+    p.on('open', () => finish(true));
+    p.on('error', e => finish(e.type === 'unavailable-id' ? false : (e.type || 'erro')));
+    setTimeout(() => finish('timeout'), 12000);
+  });
+}
+
+async function join() {
+  const name = $('#nameIn').value.trim().slice(0, 32);
+  const r = sanitizeRoom($('#roomIn').value);
+  if (!name) { lobbyStatus('Digite seu nome 🙂', true); $('#nameIn').focus(); return; }
+  if (!r) { lobbyStatus('Digite um código de sala', true); $('#roomIn').focus(); return; }
+  if (typeof Peer === 'undefined') { lobbyStatus('Não consegui carregar a biblioteca de conexão. Verifique sua internet.', true); return; }
+  $('#joinBtn').disabled = true;
+  store.set('resenha.name', name);
+  me.name = name; me.color = colorOf(name); room = r;
+  lobbyStatus('Pedindo acesso ao microfone…');
+  await ensureAudio();
+  lobbyStatus('Conectando à sala…');
+  let ok = false;
+  for (let n = 1; n <= MAX_SLOTS; n++) {
+    const res = await tryOpen(PREFIX + room + '-' + n);
+    if (res === true) { ok = true; break; }
+    if (res !== false) { lobbyStatus('Falha ao conectar (' + res + '). Tente de novo.', true); $('#joinBtn').disabled = false; return; }
+  }
+  if (!ok) { lobbyStatus('Essa sala está cheia (12 pessoas).', true); $('#joinBtn').disabled = false; return; }
+  me.id = peer.id;
+  try { history.replaceState(null, '', location.pathname + '?sala=' + encodeURIComponent(room)); } catch {}
+  setupPeer();
+  $('#lobby').classList.add('hidden');
+  $('#app').classList.remove('hidden');
+  sysMsg('Você entrou na sala <b>' + esc(room) + '</b>');
+  render();
+  scan();
+  setInterval(scan, 20000);
+  setInterval(speakingLoop, 90);
+}
+
+function setupPeer() {
+  peer.on('connection', c => wireConn(c));
+  peer.on('call', onCall);
+  peer.on('disconnected', () => { render(); if (!peer.destroyed) setTimeout(() => { try { peer.reconnect(); } catch {} }, 1500); });
+  peer.on('open', () => render());
+  peer.on('error', e => {
+    if (e.type === 'peer-unavailable') return;
+    console.warn('peer error', e.type, e);
+    if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(e.type)) toast('Instabilidade na conexão com o servidor… tentando de novo.');
+  });
+}
+
+// procura quem já está na sala (cada pessoa ocupa um "slot" com ID previsível)
+function scan() {
+  if (!peer || peer.destroyed || peer.disconnected) return;
+  for (let n = 1; n <= MAX_SLOTS; n++) {
+    const id = PREFIX + room + '-' + n;
+    if (id === me.id || pendingOut.has(id)) continue;
+    const p = peers.get(id);
+    if (p && p.conn && p.conn.open) continue;
+    pendingOut.add(id);
+    const c = peer.connect(id, { reliable: true });
+    c._out = true;
+    wireConn(c);
+    setTimeout(() => { pendingOut.delete(id); if (!c.open) { c._dup = true; try { c.close(); } catch {} } }, 15000);
+  }
+}
+
+function getPeer(id) {
+  let p = peers.get(id);
+  if (!p) { p = { id, name: null, color: '#5865f2', muted: false, deaf: false, sharing: false, speaking: false, localMute: false }; peers.set(id, p); }
+  return p;
+}
+
+function wireConn(c) {
+  c.on('open', () => onConnOpen(c));
+  c.on('data', d => onData(c, d));
+  c.on('close', () => onConnClose(c));
+  c.on('error', e => console.warn('conn', e));
+}
+
+function onConnOpen(c) {
+  const id = c.peer, p = getPeer(id);
+  if (p.conn && p.conn !== c && p.conn.open) {
+    // conexão duplicada (os dois se conectaram ao mesmo tempo): ambos mantêm a iniciada pelo menor ID
+    const keep = me.id < id ? me.id : id;
+    const cInit = c._out ? me.id : id;
+    if (cInit !== keep) { c._dup = true; setTimeout(() => { try { c.close(); } catch {} }, 1000); return; }
+    const old = p.conn; old._dup = true; p.conn = c;
+    setTimeout(() => { try { old.close(); } catch {} }, 1000);
+    sendState(c);
+    return;
+  }
+  p.conn = c;
+  sendState(c);
+  if (me.id < id) callAudio(id);
+  if (me.sharing && screenStream) callScreen(id);
+}
+
+function onConnClose(c) {
+  if (c._dup) return;
+  const p = peers.get(c.peer);
+  if (p && p.conn === c) removePeer(c.peer);
+}
+
+function removePeer(id) {
+  const p = peers.get(id);
+  if (!p) return;
+  peers.delete(id);
+  for (const call of [p.audioCall, p.screenOut, p.screenIn && p.screenIn.call]) { try { call && call.close(); } catch {} }
+  if (p.audioEl) { p.audioEl.srcObject = null; p.audioEl.remove(); }
+  try { p.src && p.src.disconnect(); } catch {}
+  if (focusKey === 's:' + id || focusKey === 'u:' + id) focusKey = null;
+  if (p.name) { sound('leave'); sysMsg('<b>' + esc(p.name) + '</b> saiu da chamada'); }
+  render();
+}
+
+const stateMsg = () => ({ t: 'state', name: me.name, muted: me.muted || micMissing, deaf: me.deaf, sharing: me.sharing });
+function sendState(c) { try { c.send(stateMsg()); } catch {} }
+function broadcast(obj) { for (const p of peers.values()) if (p.conn && p.conn.open) { try { p.conn.send(obj); } catch {} } }
+
+function onData(c, d) {
+  if (!d || typeof d !== 'object') return;
+  const p = peers.get(c.peer);
+  if (!p) return;
+  if (d.t === 'state') {
+    const first = !p.name, wasSharing = p.sharing;
+    p.name = String(d.name || '?').slice(0, 32);
+    p.color = colorOf(p.name);
+    p.muted = !!d.muted; p.deaf = !!d.deaf; p.sharing = !!d.sharing;
+    if (!p.sharing && p.screenIn) { try { p.screenIn.call.close(); } catch {} p.screenIn = null; }
+    if (first) { sound('join'); sysMsg('<b>' + esc(p.name) + '</b> entrou na chamada'); }
+    if (!wasSharing && p.sharing) sysMsg('<b>' + esc(p.name) + '</b> começou a transmitir uma janela');
+    applyPeerAudio(p);
+    render();
+  } else if (d.t === 'chat') {
+    addMsg(p.name || '?', p.color, String(d.text || '').slice(0, 2000));
+    sound('msg');
+  } else if (d.t === 'bye') {
+    removePeer(p.id);
+  }
+}
+
+/* ---------- áudio de voz ---------- */
+function callAudio(id) {
+  const call = peer.call(id, sendStream, { metadata: { kind: 'audio' } });
+  if (call) wireAudio(getPeer(id), call);
+}
+function onCall(call) {
+  const p = getPeer(call.peer);
+  const kind = call.metadata && call.metadata.kind;
+  if (kind === 'screen') {
+    if (p.screenIn) { try { p.screenIn.call.close(); } catch {} }
+    p.screenIn = { call, stream: null };
+    call.answer();
+    call.on('stream', s => { if (p.screenIn && p.screenIn.call === call) { p.screenIn.stream = s; render(); } });
+    call.on('close', () => { if (p.screenIn && p.screenIn.call === call) { p.screenIn = null; render(); } });
+  } else {
+    call.answer(sendStream);
+    wireAudio(p, call);
+  }
+}
+function wireAudio(p, call) {
+  if (p.audioCall && p.audioCall !== call) { try { p.audioCall.close(); } catch {} }
+  p.audioCall = call;
+  call.on('stream', s => attachAudio(p, s));
+  call.on('close', () => { if (p.audioCall === call) p.audioCall = null; });
+  setTimeout(() => {
+    const pc = call.peerConnection;
+    if (!pc) return;
+    pc.addEventListener('iceconnectionstatechange', () => {
+      if (pc.iceConnectionState === 'failed') toast('Não foi possível conectar o áudio com ' + (p.name || 'um amigo') + ' (rede bloqueando).');
+    });
+  }, 500);
+}
+function attachAudio(p, s) {
+  if (p.audioStream === s) return;
+  p.audioStream = s;
+  if (!p.audioEl) { p.audioEl = document.createElement('audio'); p.audioEl.autoplay = true; $('#audios').appendChild(p.audioEl); }
+  p.audioEl.srcObject = s;
+  applyPeerAudio(p);
+  p.audioEl.play().catch(needGesture);
+  try {
+    if (p.src) p.src.disconnect();
+    p.src = ctx.createMediaStreamSource(s);
+    p.an = ctx.createAnalyser(); p.an.fftSize = 512;
+    p.buf = new Float32Array(p.an.fftSize);
+    p.src.connect(p.an);
+  } catch {}
+}
+function userVol(p) { return (S.userVol[p.name] != null ? S.userVol[p.name] : 100); }
+function applyPeerAudio(p) {
+  if (!p.audioEl) return;
+  p.audioEl.volume = Math.max(0, Math.min(1, (S.outputVol / 100) * (userVol(p) / 100)));
+  p.audioEl.muted = me.deaf || p.localMute;
+  const sink = S.outputDevice === 'default' ? '' : S.outputDevice;
+  if (p.audioEl.setSinkId && p.sink !== sink) { p.sink = sink; p.audioEl.setSinkId(sink).catch(() => {}); }
+}
+function applyAll() {
+  for (const p of peers.values()) applyPeerAudio(p);
+  for (const [k, v] of vidCache) {
+    const id = k.slice(2);
+    if (id === 'me') continue;
+    const p = peers.get(id);
+    v.muted = me.deaf || (p && p.localMute);
+    v.volume = Math.max(0, Math.min(1, (S.outputVol / 100) * (p ? userVol(p) / 100 : 1)));
+    const sink = S.outputDevice === 'default' ? '' : S.outputDevice;
+    if (v.setSinkId && v._sink !== sink) { v._sink = sink; v.setSinkId(sink).catch(() => {}); }
+  }
+  applyCtxSink();
+}
+function needGesture() {
+  const b = $('#gestureBtn');
+  b.classList.remove('hidden');
+  b.onclick = () => {
+    b.classList.add('hidden');
+    ctx && ctx.resume();
+    for (const p of peers.values()) p.audioEl && p.audioEl.play().catch(() => {});
+    for (const v of vidCache.values()) v.play().catch(() => {});
+  };
+}
+
+/* ---------- transmissão de janela ---------- */
+async function startShare() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { toast('Seu navegador não suporta transmissão de tela.'); return; }
+  const q = QUALITY[S.screenQuality] || QUALITY['1080p30'];
+  const onlyWindow = S.surface === 'window';
+  const opts = {
+    video: { width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { ideal: q.fps, max: q.fps } },
+    audio: S.screenAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false } : false,
+    selfBrowserSurface: 'exclude',   // não deixa transmitir a própria aba da chamada
+    surfaceSwitching: 'exclude',
+    restrictOwnAudio: true,          // nunca captura o áudio desta aba (as vozes da chamada)
+    systemAudio: 'exclude',          // nunca o áudio do PC inteiro
+    windowAudio: S.screenAudio ? 'window' : 'exclude' // pede só o áudio da janela escolhida (Chrome/Edge recentes)
+  };
+  if (onlyWindow) {
+    opts.video.displaySurface = 'window';
+    opts.monitorTypeSurfaces = 'exclude'; // esconde "Tela inteira"
+  }
+  let stream;
+  try { stream = await navigator.mediaDevices.getDisplayMedia(opts); }
+  catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') toast('Não deu para transmitir: ' + (e.message || e.name)); return; }
+
+  const vt = stream.getVideoTracks()[0];
+  const surface = vt.getSettings ? vt.getSettings().displaySurface : undefined;
+  if (onlyWindow && surface === 'monitor') {
+    stream.getTracks().forEach(t => t.stop());
+    toast('Escolha uma janela específica (a opção "Tela inteira" está desativada nas configurações).');
+    return;
+  }
+  // garante que nunca vai áudio do sistema inteiro
+  if (surface === 'monitor') stream.getAudioTracks().forEach(t => { t.stop(); stream.removeTrack(t); });
+  try { vt.contentHint = S.screenHint === 'detail' ? 'detail' : 'motion'; } catch {}
+  const hasAudio = stream.getAudioTracks().length > 0;
+  if (S.screenAudio && !hasAudio) {
+    toast(surface === 'window'
+      ? 'Transmitindo a janela sem áudio — seu navegador não ofereceu o áudio dela. Dica: transmita uma aba com "Compartilhar áudio".'
+      : 'Transmitindo sem áudio (marque "Compartilhar áudio" no seletor).');
+  } else if (hasAudio) toast('Transmitindo a janela com o áudio dela 🔊');
+
+  screenStream = stream;
+  vt.addEventListener('ended', stopShare);
+  me.sharing = true;
+  focusKey = 's:me';
+  for (const id of peers.keys()) { const p = peers.get(id); if (p.conn && p.conn.open) callScreen(id); }
+  broadcast(stateMsg());
+  sound('share');
+  render();
+}
+function callScreen(id) {
+  const p = getPeer(id);
+  if (p.screenOut) { try { p.screenOut.close(); } catch {} }
+  const call = peer.call(id, screenStream, { metadata: { kind: 'screen' } });
+  p.screenOut = call;
+  const q = QUALITY[S.screenQuality] || QUALITY['1080p30'];
+  const tune = () => {
+    const pc = call && call.peerConnection;
+    if (!pc) return;
+    pc.getSenders().forEach(s => {
+      if (!s.track || s.track.kind !== 'video') return;
+      const prm = s.getParameters();
+      if (!prm.encodings || !prm.encodings.length) prm.encodings = [{}];
+      prm.encodings[0].maxBitrate = q.br;
+      prm.encodings[0].maxFramerate = q.fps;
+      if (S.screenHint === 'detail') prm.degradationPreference = 'maintain-resolution';
+      s.setParameters(prm).catch(() => {});
+    });
+  };
+  setTimeout(tune, 2000); setTimeout(tune, 6000);
+}
+function stopShare() {
+  if (!me.sharing) return;
+  if (screenStream) screenStream.getTracks().forEach(t => t.stop());
+  screenStream = null;
+  me.sharing = false;
+  for (const p of peers.values()) { if (p.screenOut) { try { p.screenOut.close(); } catch {} p.screenOut = null; } }
+  if (focusKey === 's:me') focusKey = null;
+  broadcast(stateMsg());
+  render();
+}
+
+/* ---------- ações ---------- */
+function toggleMute() {
+  if (micMissing) { toast('Nenhum microfone disponível. Confira em Configurações.'); return; }
+  me.muted = !me.muted;
+  if (!me.muted && me.deaf) { me.deaf = false; applyAll(); }
+  sound(me.muted ? 'mute' : 'unmute');
+  updateTransmit(); broadcast(stateMsg()); render();
+}
+function toggleDeaf() {
+  me.deaf = !me.deaf;
+  sound(me.deaf ? 'mute' : 'unmute');
+  applyAll(); updateTransmit(); broadcast(stateMsg()); render();
+}
+function leave() {
+  broadcast({ t: 'bye' });
+  setTimeout(() => {
+    try { peer && peer.destroy(); } catch {}
+    rawStream && rawStream.getTracks().forEach(t => t.stop());
+    screenStream && screenStream.getTracks().forEach(t => t.stop());
+    location.reload();
+  }, 150);
+}
+window.addEventListener('beforeunload', () => { try { broadcast({ t: 'bye' }); peer && peer.destroy(); } catch {} });
+
+function inviteLink() { return location.protocol.startsWith('http') ? location.origin + location.pathname + '?sala=' + encodeURIComponent(room) : room; }
+async function copyInvite() {
+  const isHttp = location.protocol.startsWith('http');
+  try { await navigator.clipboard.writeText(inviteLink()); toast(isHttp ? 'Link de convite copiado! Manda pros amigos 🎉' : 'Código da sala copiado: ' + room); }
+  catch { toast((isHttp ? 'Link: ' : 'Código: ') + inviteLink()); }
+}
+
+/* =========================== interface =========================== */
+function participants() {
+  const arr = [{ id: 'me', name: me.name, color: me.color, muted: me.muted || micMissing, deaf: me.deaf, sharing: me.sharing, isMe: true }];
+  for (const p of peers.values()) if (p.name) arr.push(p);
+  return arr;
+}
+
+function render() {
+  if (!me.id) return;
+  const ps = participants();
+  // rail + cabeçalhos
+  $('#roomIcon').textContent = initials(room.replace(/-/g, ' '));
+  $('#roomIcon').title = room;
+  $('#sbRoom').textContent = room;
+  $('#mhRoom').textContent = '· ' + room;
+  // lista de voz
+  $('#vusers').innerHTML = ps.map(u => `
+    <div class="vu" data-sp="${esc(u.id)}" data-uid="${esc(u.id)}">
+      <div class="av sm" style="background:${u.color}">${esc(initials(u.name))}</div>
+      <span class="n">${esc(u.name)}</span>
+      <span class="right">${u.sharing ? '<span class="live">AO VIVO</span>' : ''}${u.muted ? ic('mic', 14, true) : ''}${u.deaf ? ic('head', 14, true) : ''}${!u.isMe && u.localMute ? '<span title="Silenciado por você">🔇</span>' : ''}</span>
+    </div>`).join('');
+  // painel de conexão
+  const online = peer && peer.open && !peer.disconnected;
+  $('#vcT').className = 't' + (online ? '' : ' wait');
+  $('#vcT').innerHTML = ic('signal', 16) + (online ? 'Voz conectada' : 'Reconectando…');
+  $('#vcS').textContent = 'Sala de voz / ' + room + ' · ' + ps.length + (ps.length === 1 ? ' pessoa' : ' pessoas');
+  // painel do usuário
+  $('#meAv').style.background = me.color;
+  $('#meAv').textContent = initials(me.name);
+  $('#meNm').textContent = me.name;
+  $('#meSt').textContent = micMissing ? 'Sem microfone' : me.deaf ? 'Ensurdecido' : me.muted ? 'Microfone desligado' : S.mode === 'ptt' ? 'Segure ' + keyName(S.pttKey) + ' para falar' : 'Em chamada';
+  const mOff = me.muted || micMissing || me.deaf;
+  $('#bMute').innerHTML = ic('mic', 20, mOff); $('#bMute').classList.toggle('off', mOff);
+  $('#bDeaf').innerHTML = ic('head', 20, me.deaf); $('#bDeaf').classList.toggle('off', me.deaf);
+  $('#cMute').innerHTML = ic('mic', 24, mOff); $('#cMute').classList.toggle('off', mOff);
+  $('#cDeaf').innerHTML = ic('head', 24, me.deaf); $('#cDeaf').classList.toggle('off', me.deaf);
+  $('#cShare').classList.toggle('active', me.sharing);
+  $('#cShare').title = me.sharing ? 'Parar transmissão' : 'Transmitir uma janela';
+  renderStage(ps);
+}
+
+function renderStage(ps) {
+  const st = $('#stage');
+  const tiles = [];
+  for (const u of ps) {
+    const scr = u.isMe ? (me.sharing && screenStream) : (u.screenIn && u.screenIn.stream);
+    if (scr) tiles.push({ key: 's:' + u.id, type: 'screen', u, stream: scr });
+    tiles.push({ key: 'u:' + u.id, type: 'user', u });
+  }
+  if (focusKey && !tiles.some(t => t.key === focusKey)) focusKey = null;
+  st.innerHTML = '';
+  st.className = 'stage' + (focusKey ? ' focus' : '');
+  const mk = t => {
+    const d = document.createElement('div');
+    d.className = 'tile ' + t.type;
+    if (t.type === 'user') {
+      d.dataset.sp = t.u.id;
+      d.innerHTML = `<div class="av lg" style="background:${t.u.color}">${esc(initials(t.u.name))}</div>
+        <div class="tag">${t.u.muted ? ic('mic', 14, true) : ''}${t.u.deaf ? ic('head', 14, true) : ''}<span>${esc(t.u.name)}${t.u.isMe ? ' (você)' : ''}</span></div>`;
+    } else {
+      d.appendChild(vidFor(t.key, t.stream, t.u.isMe));
+      d.insertAdjacentHTML('beforeend', `<div class="tag"><span class="live">AO VIVO</span><span>${esc(t.u.name)}${t.u.isMe ? ' (você)' : ''}</span></div>
+        <div class="tools"><button class="tbtn" data-fs title="Tela cheia">${ic('fs', 18)}</button></div>`);
+    }
+    d.onclick = e => {
+      if (e.target.closest('[data-fs]')) { e.stopPropagation(); if (document.fullscreenElement) document.exitFullscreen(); else d.requestFullscreen && d.requestFullscreen().catch(() => {}); return; }
+      focusKey = focusKey === t.key ? null : t.key;
+      renderStage(participants());
+    };
+    return d;
+  };
+  if (focusKey) {
+    const big = document.createElement('div'); big.className = 'big';
+    const strip = document.createElement('div'); strip.className = 'strip';
+    tiles.forEach(t => (t.key === focusKey ? big : strip).appendChild(mk(t)));
+    st.append(big, strip);
+  } else {
+    tiles.forEach(t => st.appendChild(mk(t)));
+    if (ps.length === 1) {
+      st.insertAdjacentHTML('beforeend', `<div class="tile invite"><b>Tá vazio por aqui…</b><div>Chame a galera com o código <b>${esc(room)}</b></div><div><button class="btn" data-invite>Copiar convite</button></div></div>`);
+      st.querySelector('[data-invite]').onclick = copyInvite;
+    }
+  }
+  for (const k of [...vidCache.keys()]) if (!tiles.some(t => t.key === k)) { vidCache.get(k).srcObject = null; vidCache.delete(k); }
+  applyAll();
+  speakingLoop();
+}
+function vidFor(key, stream, local) {
+  let v = vidCache.get(key);
+  if (!v) { v = document.createElement('video'); v.autoplay = true; v.playsInline = true; vidCache.set(key, v); }
+  if (v.srcObject !== stream) v.srcObject = stream;
+  v.muted = local || me.deaf;
+  v.play().catch(() => { if (!local) needGesture(); });
+  return v;
+}
+
+function speakingLoop() {
+  for (const p of peers.values()) {
+    if (!p.an) { p.speaking = false; continue; }
+    p.an.getFloatTimeDomainData(p.buf);
+    let s = 0; for (let i = 0; i < p.buf.length; i++) s += p.buf[i] * p.buf[i];
+    const db = 10 * Math.log10(s / p.buf.length + 1e-10);
+    p.speaking = db > -52 && !p.muted;
+  }
+  me.speaking = transmitting() && meter.open && meter.lv > -70;
+  $$('[data-sp]').forEach(el => {
+    const id = el.dataset.sp;
+    const sp = id === 'me' ? me.speaking : !!(peers.get(id) && peers.get(id).speaking);
+    el.classList.toggle('speaking', sp);
+  });
+}
+
+/* ---------- chat ---------- */
+function linkify(s) { return s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'); }
+function nowTime() { return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
+function addMsg(name, color, text) {
+  const el = document.createElement('div');
+  el.className = 'msg';
+  el.innerHTML = `<div class="av md" style="background:${color}">${esc(initials(name))}</div>
+    <div style="min-width:0"><div class="mh"><b style="color:${color}">${esc(name)}</b><time>${nowTime()}</time></div><div class="mt">${linkify(esc(text))}</div></div>`;
+  pushMsg(el);
+  if (!chatOpen) { unread++; updateBadge(); }
+}
+function sysMsg(html) {
+  const el = document.createElement('div');
+  el.className = 'msg sys';
+  el.innerHTML = `<span>→ ${html}</span><time>${nowTime()}</time>`;
+  pushMsg(el);
+}
+function pushMsg(el) { const m = $('#msgs'); m.appendChild(el); m.scrollTop = m.scrollHeight; }
+function updateBadge() {
+  for (const b of [$('#chBadge'), $('#hChat .badge')]) { if (!b) continue; b.textContent = unread; b.classList.toggle('hidden', !unread); }
+}
+function setChat(open) {
+  chatOpen = open;
+  $('#chat').classList.toggle('hidden', !open);
+  $('#chText').classList.toggle('active', open);
+  if (open) { unread = 0; updateBadge(); $('#chatIn').focus(); const m = $('#msgs'); m.scrollTop = m.scrollHeight; }
+}
+$('#chatForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const t = $('#chatIn').value.trim();
+  if (!t) return;
+  $('#chatIn').value = '';
+  broadcast({ t: 'chat', text: t });
+  addMsg(me.name, me.color, t);
+});
+
+/* ---------- popover de volume por usuário ---------- */
+let popEl = null;
+function closePop() { if (popEl) { popEl.remove(); popEl = null; } }
+$('#vusers').addEventListener('click', e => {
+  const row = e.target.closest('[data-uid]');
+  if (!row) return;
+  e.stopPropagation();
+  closePop();
+  const id = row.dataset.uid;
+  if (id === 'me') { openSettings('voz'); return; }
+  const p = peers.get(id);
+  if (!p) return;
+  popEl = document.createElement('div');
+  popEl.className = 'pop';
+  popEl.innerHTML = `<div class="ph">${esc(p.name)}</div>
+    <div class="lbl" style="margin:4px 0 6px">Volume do usuário</div>
+    <div class="rng"><input type="range" min="0" max="100" value="${userVol(p)}"><span class="v">${userVol(p)}%</span></div>
+    <label>Silenciar para mim <span class="sw"><input type="checkbox" ${p.localMute ? 'checked' : ''}><span></span></span></label>`;
+  const r = row.getBoundingClientRect();
+  popEl.style.left = (r.right + 8) + 'px';
+  popEl.style.top = Math.min(r.top, innerHeight - 160) + 'px';
+  document.body.appendChild(popEl);
+  const rng = popEl.querySelector('input[type=range]'), val = popEl.querySelector('.v');
+  rng.oninput = () => { S.userVol[p.name] = +rng.value; val.textContent = rng.value + '%'; save(); applyAll(); };
+  popEl.querySelector('input[type=checkbox]').onchange = ev => { p.localMute = ev.target.checked; applyAll(); render(); };
+  popEl.addEventListener('click', ev => ev.stopPropagation());
+});
+document.addEventListener('click', closePop);
+
+/* ---------- configurações ---------- */
+let meterRaf = 0;
+function openSettings(tab) {
+  ensureAudio().then(refreshDevices);
+  $('#settings').classList.remove('hidden');
+  showTab(tab || 'voz');
+  syncSettingsUI();
+  cancelAnimationFrame(meterRaf);
+  const loop = () => { drawMeters(); meterRaf = requestAnimationFrame(loop); };
+  loop();
+}
+function closeSettings() {
+  $('#settings').classList.add('hidden');
+  cancelAnimationFrame(meterRaf);
+  if (testing) toggleTest();
+}
+function showTab(t) {
+  $$('.sitem').forEach(b => b.classList.toggle('active', b.dataset.tab === t));
+  $$('[data-pane]').forEach(p => p.classList.toggle('hidden', p.dataset.pane !== t));
+}
+$$('.sitem').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$('#setClose').onclick = closeSettings;
+
+function syncSettingsUI() {
+  $$('[data-k]').forEach(el => {
+    const k = el.dataset.k;
+    if (el.type === 'checkbox') el.checked = !!S[k];
+    else if (el.type === 'radio') el.checked = S[k] === el.value;
+    else el.value = S[k];
+  });
+  $$('[data-v]').forEach(el => {
+    const k = el.dataset.v;
+    el.textContent = k === 'gateDb' ? S[k] + ' dB' : k === 'pttDelay' ? S[k] + ' ms' : S[k] + '%';
+  });
+  $('#gateRange').disabled = S.gateAuto || !S.gate;
+  $('#pttBox').style.display = S.mode === 'ptt' ? '' : 'none';
+  $('#pttKeyBtn').textContent = capturingKey ? 'Pressione uma tecla…' : keyName(S.pttKey);
+  const pr = currentPreset();
+  $$('.preset').forEach(b => b.classList.toggle('active', b.dataset.preset === pr));
+  $('#presetLbl').textContent = pr ? '' : 'Configuração personalizada';
+}
+$$('[data-k]').forEach(el => {
+  const k = el.dataset.k;
+  el.addEventListener(el.type === 'range' ? 'input' : 'change', () => {
+    if (el.type === 'checkbox') S[k] = el.checked;
+    else if (el.type === 'range') S[k] = +el.value;
+    else S[k] = el.value;
+    save(); onSetting(k);
+  });
+});
+function onSetting(k) {
+  if (['ns', 'ec', 'agc', 'inputDevice'].includes(k) && ctx) startMic().then(updateTransmit).catch(e => toast('Erro no microfone: ' + (e.message || e.name)));
+  if (['highpass', 'lowpass', 'inputVol'].includes(k)) applyFilters();
+  if (['gate', 'gateAuto', 'gateDb'].includes(k)) applyGate();
+  if (['outputVol', 'outputDevice'].includes(k)) applyAll();
+  if (k === 'mode') { pttHeld = false; updateTransmit(); }
+  syncSettingsUI();
+  render();
+}
+const PRESETS = {
+  off: { ns: false, ec: true, agc: false, gate: false, highpass: false, lowpass: false },
+  padrao: { ns: true, ec: true, agc: true, gate: true, gateAuto: true, highpass: true, lowpass: false },
+  forte: { ns: true, ec: true, agc: true, gate: true, gateAuto: true, highpass: true, lowpass: true }
+};
+function currentPreset() {
+  return Object.keys(PRESETS).find(n => Object.entries(PRESETS[n]).every(([k, v]) => S[k] === v)) || null;
+}
+$$('.preset').forEach(b => b.onclick = () => {
+  const before = { ns: S.ns, ec: S.ec, agc: S.agc };
+  Object.assign(S, PRESETS[b.dataset.preset]); save();
+  applyFilters(); applyGate();
+  if (ctx && (before.ns !== S.ns || before.ec !== S.ec || before.agc !== S.agc)) startMic().catch(() => {});
+  syncSettingsUI();
+});
+
+function drawMeters() {
+  const pct = v => Math.max(0, Math.min(100, v + 100));
+  const lv = pct(meter.lv);
+  const thr = S.gate ? (S.gateAuto ? meter.thr : S.gateDb) : -100;
+  for (const id of ['#sFill', '#tFill']) {
+    const f = $(id); f.style.width = lv + '%'; f.classList.toggle('open', !!meter.open && meter.lv > -95);
+  }
+  $('#sThr').style.left = 'calc(' + pct(thr) + '% - 1px)';
+  if (S.gateAuto && S.gate) { $('#gateRange').value = Math.round(meter.thr); $('[data-v="gateDb"]').textContent = 'auto (' + Math.round(meter.thr) + ' dB)'; }
+}
+function toggleTest() {
+  if (!ctx) return;
+  if (micMissing) { toast('Nenhum microfone disponível.'); return; }
+  testing = !testing;
+  testGain.gain.setTargetAtTime(testing ? 1 : 0, ctx.currentTime, 0.02);
+  $('#testBtn').textContent = testing ? 'Parar o teste' : 'Vamos verificar';
+  $('#testBtn').classList.toggle('red', testing);
+}
+$('#testBtn').onclick = toggleTest;
+$('#pttKeyBtn').onclick = () => { capturingKey = true; syncSettingsUI(); };
+
+/* ---------- teclado ---------- */
+const isTyping = e => e.target && (e.target.tagName === 'INPUT' && e.target.type === 'text' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT');
+window.addEventListener('keydown', e => {
+  if (capturingKey) { e.preventDefault(); if (e.code !== 'Escape') S.pttKey = e.code; capturingKey = false; save(); syncSettingsUI(); render(); return; }
+  if (e.code === 'Escape' && !$('#settings').classList.contains('hidden')) { closeSettings(); return; }
+  if (!me.id) return;
+  if (e.ctrlKey && e.shiftKey && e.code === 'KeyM') { e.preventDefault(); toggleMute(); return; }
+  if (e.ctrlKey && e.shiftKey && e.code === 'KeyD') { e.preventDefault(); toggleDeaf(); return; }
+  if (S.mode === 'ptt' && e.code === S.pttKey && !e.repeat && !isTyping(e)) {
+    clearTimeout(pttTimer); pttHeld = true; updateTransmit();
+  }
+});
+window.addEventListener('keyup', e => {
+  if (S.mode === 'ptt' && e.code === S.pttKey) {
+    clearTimeout(pttTimer);
+    pttTimer = setTimeout(() => { pttHeld = false; updateTransmit(); }, S.pttDelay);
+  }
+});
+window.addEventListener('blur', () => { if (pttHeld) { pttHeld = false; updateTransmit(); } });
+
+/* ---------- toast & lobby ---------- */
+let toastT = 0;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.add('hidden'), 4500);
+}
+function lobbyStatus(msg, err) { const l = $('#lstatus'); l.textContent = msg; l.classList.toggle('err', !!err); }
+
+/* =========================== inicialização =========================== */
+(function init() {
+  $('#logo').innerHTML = ic('wave', 40);
+  $('#homeBtn').innerHTML = ic('home', 24);
+  $('#sbInvite').innerHTML = ic('link', 18);
+  $('#icHash').innerHTML = ic('hash', 20); $('#icHash2').innerHTML = ic('hash', 22);
+  $('#icSpk').innerHTML = ic('spk', 20); $('#icSpk2').innerHTML = ic('spk', 22);
+  $('#vcLeave').innerHTML = ic('hang', 20);
+  $('#bSet').innerHTML = ic('cog', 20);
+  $('#cSet').innerHTML = ic('cog', 24);
+  $('#cShare').innerHTML = ic('screen', 24);
+  $('#cLeave').innerHTML = ic('hang', 26);
+  $('#hInvite').innerHTML = ic('link', 20) + 'Convidar';
+  $('#hChat').innerHTML = ic('chat', 20) + 'Chat<span class="badge hidden">0</span>';
+  $('#chatClose').innerHTML = ic('x', 18);
+  $('#icX').innerHTML = ic('x', 18);
+
+  const params = new URLSearchParams(location.search);
+  $('#roomIn').value = params.get('sala') || location.hash.slice(1) || 'resenha-' + Math.random().toString(36).slice(2, 6);
+  $('#nameIn').value = store.get('resenha.name', '');
+  ($('#nameIn').value ? $('#joinBtn') : $('#nameIn')).focus();
+  $('#joinBtn').onclick = join;
+  for (const id of ['#nameIn', '#roomIn']) $(id).addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
+
+  $('#bMute').onclick = $('#cMute').onclick = toggleMute;
+  $('#bDeaf').onclick = $('#cDeaf').onclick = toggleDeaf;
+  $('#bSet').onclick = $('#cSet').onclick = () => openSettings('voz');
+  $('#cShare').onclick = () => me.sharing ? stopShare() : startShare();
+  $('#cLeave').onclick = $('#vcLeave').onclick = leave;
+  $('#hInvite').onclick = $('#sbInvite').onclick = $('#railInvite').onclick = copyInvite;
+  $('#hChat').onclick = () => setChat(!chatOpen);
+  $('#chText').onclick = () => setChat(true);
+  $('#chatClose').onclick = () => setChat(false);
+  $('#homeBtn').onclick = () => toast('Você está na sala ' + room);
+})();
+</script>
+</body>
+</html>
