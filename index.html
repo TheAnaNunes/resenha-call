@@ -186,6 +186,13 @@ svg{flex-shrink:0;display:block}
 .netwarn{margin:0 16px;background:rgba(240,178,50,.12);border:1px solid rgba(240,178,50,.45);color:#f5d590;border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.5}
 .netwarn b{color:#ffe2a3}
 .netwarn button{color:#fff;text-decoration:underline;font-weight:600}
+.sharemenu{width:330px}
+.sopt{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;padding:10px;border-radius:6px;margin-top:4px}
+.sopt:hover{background:var(--blurple)}
+.sopt span{font-size:22px;line-height:1}
+.sopt b{display:block;color:var(--head);font-size:14px}
+.sopt small{display:block;color:#b5bac1;font-size:12px;line-height:1.35;margin-top:2px}
+.sopt:hover small{color:#e3e5ff}
 .turnres{font-size:13px;margin-top:10px;min-height:18px}
 </style>
 </head>
@@ -340,16 +347,13 @@ svg{flex-shrink:0;display:block}
     <!-- TELA -->
     <section data-pane="tela" class="hidden">
       <h2>Transmissão de tela</h2>
-      <h3>O que pode ser transmitido</h3>
-      <label class="radio"><input type="radio" name="surface" value="window" data-k="surface"> Somente uma janela (recomendado)</label>
-      <label class="radio"><input type="radio" name="surface" value="any" data-k="surface"> Qualquer coisa (tela inteira, janela ou aba)</label>
-      <div class="row"><div><div class="rt">Transmitir o áudio da janela</div><div class="rd">Envia só o som do app/jogo escolhido — nada do resto do PC, nem as vozes da chamada.</div></div><label class="sw"><input type="checkbox" data-k="screenAudio"><span></span></label></div>
-      <div class="note warn">O áudio só de uma janela depende do navegador: Chrome/Edge recentes no Windows oferecem a opção "Compartilhar áudio da janela" no seletor. Se não aparecer, transmitir uma <b>aba</b> do navegador com áudio funciona em qualquer versão. Nunca é enviado o áudio do sistema todo.</div>
+      <div class="row"><div><div class="rt">Transmitir o áudio</div><div class="rd">Envia só o som da aba ou janela escolhida — nunca o som do PC inteiro.</div></div><label class="sw"><input type="checkbox" data-k="screenAudio"><span></span></label></div>
+      <div class="note"><b>Vai passar filme?</b> Clique em transmitir → <b>Aba do navegador</b> e escolha a aba do filme (deixe "Compartilhar áudio da guia" marcado). Assim só o som do filme vai — se você transmitir a <i>janela</i> do navegador, o som da chamada vai junto e todo mundo ouve o próprio eco. Use fones para o filme não vazar no seu microfone.</div>
       <h3>Qualidade</h3>
       <div class="grid2">
         <div><div class="lbl">Resolução e taxa de quadros</div><select class="sel" data-k="screenQuality">
           <option value="720p30">720p — 30 FPS</option>
-          <option value="1080p30">1080p — 30 FPS</option>
+          <option value="1080p30">1080p — 30 FPS (filmes)</option>
           <option value="1080p60">1080p — 60 FPS</option>
           <option value="1440p60">1440p — 60 FPS (internet boa)</option>
         </select></div>
@@ -415,10 +419,10 @@ const initials = n => (n || '?').trim().split(/\s+/).map(w => w[0]).slice(0, 2).
 const sanitizeRoom = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40);
 const keyName = c => !c ? '—' : c === 'Space' ? 'Espaço' : c.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'Num ');
 const QUALITY = {
-  '720p30': { w: 1280, h: 720, fps: 30, br: 2500000 },
-  '1080p30': { w: 1920, h: 1080, fps: 30, br: 4500000 },
-  '1080p60': { w: 1920, h: 1080, fps: 60, br: 6500000 },
-  '1440p60': { w: 2560, h: 1440, fps: 60, br: 9000000 }
+  '720p30': { w: 1280, h: 720, fps: 30, br: 3500000 },
+  '1080p30': { w: 1920, h: 1080, fps: 30, br: 6000000 },
+  '1080p60': { w: 1920, h: 1080, fps: 60, br: 9000000 },
+  '1440p60': { w: 2560, h: 1440, fps: 60, br: 14000000 }
 };
 
 /* =========================== ícones =========================== */
@@ -774,7 +778,8 @@ function onCall(call) {
   if (kind === 'screen') {
     if (p.screenIn) { try { p.screenIn.call.close(); } catch {} }
     p.screenIn = { call, stream: null };
-    call.answer();
+    const kb = Math.max(1000, Math.min(20000, +(call.metadata.kbps) || 6000));
+    call.answer(undefined, { sdpTransform: sdp => boostSdp(sdp, kb) });
     call.on('stream', s => { if (p.screenIn && p.screenIn.call === call) { p.screenIn.stream = s; render(); } });
     call.on('close', () => { if (p.screenIn && p.screenIn.call === call) { p.screenIn = null; render(); } });
   } else {
@@ -843,43 +848,60 @@ function needGesture() {
 }
 
 /* ---------- transmissão de janela ---------- */
-async function startShare() {
+// escolha do que transmitir (estilo Discord)
+function openShareMenu() {
+  closePop();
+  popEl = document.createElement('div');
+  popEl.className = 'pop sharemenu';
+  popEl.innerHTML = `<div class="ph">O que você quer transmitir?</div>
+    <button class="sopt" data-m="tab"><span>🎬</span><div><b>Aba do navegador</b><small>Filme, YouTube, streaming. Vai só o som daquela aba — sem eco das vozes.</small></div></button>
+    <button class="sopt" data-m="window"><span>🎮</span><div><b>Janela de um app</b><small>Jogo ou programa. Envia o som só daquela janela (se o navegador permitir).</small></div></button>
+    <button class="sopt" data-m="screen"><span>🖥️</span><div><b>Tela inteira</b><small>Sem áudio, para não vazar o som do PC.</small></div></button>`;
+  const r = $('#cShare').getBoundingClientRect();
+  document.body.appendChild(popEl);
+  popEl.style.left = Math.max(8, r.left + r.width / 2 - popEl.offsetWidth / 2) + 'px';
+  popEl.style.top = (r.top - popEl.offsetHeight - 10) + 'px';
+  popEl.addEventListener('click', e => {
+    e.stopPropagation();
+    const b = e.target.closest('[data-m]');
+    if (b) { closePop(); startShare(b.dataset.m); }
+  });
+}
+
+async function startShare(mode) {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) { toast('Seu navegador não suporta transmissão de tela.'); return; }
   const q = QUALITY[S.screenQuality] || QUALITY['1080p30'];
-  const onlyWindow = S.surface === 'window';
+  const wantAudio = S.screenAudio && mode !== 'screen';
   const opts = {
-    video: { width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { ideal: q.fps, max: q.fps } },
-    audio: S.screenAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false } : false,
+    video: { width: { ideal: q.w }, height: { ideal: q.h }, frameRate: { ideal: q.fps, max: q.fps },
+             displaySurface: mode === 'tab' ? 'browser' : mode === 'window' ? 'window' : 'monitor' },
+    audio: wantAudio ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false, suppressLocalAudioPlayback: false } : false,
+    preferCurrentTab: false,
     selfBrowserSurface: 'exclude',   // não deixa transmitir a própria aba da chamada
-    surfaceSwitching: 'exclude',
+    surfaceSwitching: 'include',     // permite trocar de aba sem parar a transmissão
     restrictOwnAudio: true,          // nunca captura o áudio desta aba (as vozes da chamada)
     systemAudio: 'exclude',          // nunca o áudio do PC inteiro
-    windowAudio: S.screenAudio ? 'window' : 'exclude' // pede só o áudio da janela escolhida (Chrome/Edge recentes)
+    windowAudio: wantAudio ? 'window' : 'exclude'
   };
-  if (onlyWindow) {
-    opts.video.displaySurface = 'window';
-    opts.monitorTypeSurfaces = 'exclude'; // esconde "Tela inteira"
-  }
+  if (mode !== 'screen') opts.monitorTypeSurfaces = 'exclude';
   let stream;
   try { stream = await navigator.mediaDevices.getDisplayMedia(opts); }
   catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') toast('Não deu para transmitir: ' + (e.message || e.name)); return; }
 
   const vt = stream.getVideoTracks()[0];
   const surface = vt.getSettings ? vt.getSettings().displaySurface : undefined;
-  if (onlyWindow && surface === 'monitor') {
-    stream.getTracks().forEach(t => t.stop());
-    toast('Escolha uma janela específica (a opção "Tela inteira" está desativada nas configurações).');
-    return;
-  }
-  // garante que nunca vai áudio do sistema inteiro
+  // nunca envia o áudio do sistema inteiro
   if (surface === 'monitor') stream.getAudioTracks().forEach(t => { t.stop(); stream.removeTrack(t); });
+  // filme/vídeo: prioriza fluidez com boa resolução; texto: prioriza nitidez
   try { vt.contentHint = S.screenHint === 'detail' ? 'detail' : 'motion'; } catch {}
   const hasAudio = stream.getAudioTracks().length > 0;
-  if (S.screenAudio && !hasAudio) {
-    toast(surface === 'window'
-      ? 'Transmitindo a janela sem áudio — seu navegador não ofereceu o áudio dela. Dica: transmita uma aba com "Compartilhar áudio".'
-      : 'Transmitindo sem áudio (marque "Compartilhar áudio" no seletor).');
-  } else if (hasAudio) toast('Transmitindo a janela com o áudio dela 🔊');
+  if (wantAudio && !hasAudio) {
+    toast(surface === 'browser'
+      ? 'Sem áudio — no seletor, deixe marcado "Compartilhar áudio da guia".'
+      : 'Janela sem áudio — seu navegador não ofereceu o som dela. Para filmes, use "Aba do navegador".');
+  } else if (hasAudio && surface === 'window') {
+    toast('Se seus amigos ouvirem eco das próprias vozes, a janela é do navegador: transmita como "Aba do navegador".');
+  } else if (hasAudio) toast('Transmitindo com o áudio da aba 🔊 (use fones para o filme não vazar no seu microfone)');
 
   screenStream = stream;
   vt.addEventListener('ended', stopShare);
@@ -890,12 +912,45 @@ async function startShare() {
   sound('share');
   render();
 }
+
+// Força uma taxa de dados alta desde o começo (o padrão do WebRTC começa em ~300 kbps e sobe devagar)
+function boostSdp(sdp, kbps) {
+  const start = Math.round(kbps * 0.7), min = Math.min(1500, Math.round(kbps * 0.3));
+  const lines = sdp.split('\r\n');
+  const vpts = new Set(), withFmtp = new Set();
+  let inV = false;
+  for (const l of lines) {
+    if (l.startsWith('m=')) inV = l.startsWith('m=video');
+    if (!inV) continue;
+    let m = /^a=rtpmap:(\d+) ([\w-]+)/.exec(l);
+    if (m && !/^(rtx|red|ulpfec|flexfec-03)$/i.test(m[2])) vpts.add(m[1]);
+    m = /^a=fmtp:(\d+) /.exec(l);
+    if (m) withFmtp.add(m[1]);
+  }
+  const extra = `x-google-start-bitrate=${start};x-google-min-bitrate=${min};x-google-max-bitrate=${kbps}`;
+  const out = [];
+  inV = false;
+  for (const l of lines) {
+    if (l.startsWith('m=')) inV = l.startsWith('m=video');
+    if (inV && /^b=(AS|TIAS):/.test(l)) continue;
+    if (inV && l.startsWith('a=fmtp:')) {
+      const pt = l.slice(7).split(' ')[0];
+      if (vpts.has(pt) && !l.includes('x-google')) { out.push(l + ';' + extra); continue; }
+    }
+    out.push(l);
+    if (inV && l.startsWith('c=')) out.push('b=AS:' + kbps);
+    if (inV) { const m = /^a=rtpmap:(\d+) /.exec(l); if (m && vpts.has(m[1]) && !withFmtp.has(m[1])) out.push(`a=fmtp:${m[1]} ${extra}`); }
+  }
+  return out.join('\r\n');
+}
+
 function callScreen(id) {
   const p = getPeer(id);
   if (p.screenOut) { try { p.screenOut.close(); } catch {} }
-  const call = peer.call(id, screenStream, { metadata: { kind: 'screen' } });
-  p.screenOut = call;
   const q = QUALITY[S.screenQuality] || QUALITY['1080p30'];
+  const kbps = Math.round(q.br / 1000);
+  const call = peer.call(id, screenStream, { metadata: { kind: 'screen', kbps }, sdpTransform: sdp => boostSdp(sdp, kbps) });
+  p.screenOut = call;
   const tune = () => {
     const pc = call && call.peerConnection;
     if (!pc) return;
@@ -905,11 +960,14 @@ function callScreen(id) {
       if (!prm.encodings || !prm.encodings.length) prm.encodings = [{}];
       prm.encodings[0].maxBitrate = q.br;
       prm.encodings[0].maxFramerate = q.fps;
-      if (S.screenHint === 'detail') prm.degradationPreference = 'maintain-resolution';
+      prm.encodings[0].scaleResolutionDownBy = 1;
+      prm.encodings[0].priority = 'high';
+      prm.encodings[0].networkPriority = 'high';
+      prm.degradationPreference = S.screenHint === 'detail' ? 'maintain-resolution' : 'balanced';
       s.setParameters(prm).catch(() => {});
     });
   };
-  setTimeout(tune, 2000); setTimeout(tune, 6000);
+  setTimeout(tune, 1500); setTimeout(tune, 5000); setTimeout(tune, 12000);
 }
 function stopShare() {
   if (!me.sharing) return;
@@ -1291,7 +1349,7 @@ function lobbyStatus(msg, err) { const l = $('#lstatus'); l.textContent = msg; l
   $('#icX').innerHTML = ic('x', 18);
 
   const params = new URLSearchParams(location.search);
-  $('#roomIn').value = params.get('sala') || location.hash.slice(1) || 'resenha-' + Math.random().toString(36).slice(2, 6);
+  $('#roomIn').value = params.get('sala') || location.hash.slice(1) || '';
   $('#nameIn').value = store.get('resenha.name', '');
   ($('#nameIn').value ? $('#joinBtn') : $('#nameIn')).focus();
   $('#joinBtn').onclick = join;
@@ -1300,7 +1358,7 @@ function lobbyStatus(msg, err) { const l = $('#lstatus'); l.textContent = msg; l
   $('#bMute').onclick = $('#cMute').onclick = toggleMute;
   $('#bDeaf').onclick = $('#cDeaf').onclick = toggleDeaf;
   $('#bSet').onclick = $('#cSet').onclick = () => openSettings('voz');
-  $('#cShare').onclick = () => me.sharing ? stopShare() : startShare();
+  $('#cShare').onclick = e => { e.stopPropagation(); me.sharing ? stopShare() : openShareMenu(); };
   $('#cLeave').onclick = $('#vcLeave').onclick = leave;
   $('#hInvite').onclick = $('#sbInvite').onclick = $('#railInvite').onclick = copyInvite;
   $('#hChat').onclick = () => setChat(!chatOpen);
